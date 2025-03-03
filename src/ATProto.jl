@@ -1,5 +1,5 @@
 module ATProto
 
-# Write your package code here.
+include("api/API.jl")
 
 end
