@@ -34,7 +34,7 @@ name(n::NSID) = n.name
 
 valid_nsid_char(c::Char) = isletter(c) || isdigit(c) || c in ('.', '-')
 
-function ensure_valid_nsid(nsid::String)::Nothing
+function ensure_valid_nsid(nsid)
     !all(valid_nsid_char, nsid) && error("Disallowed_characters in NSID (ASCII letters, digits, dashes, periods only)")
     length(nsid) > 317 && error("NSID is too long (317 characters max)")
 
@@ -52,7 +52,7 @@ function ensure_valid_nsid(nsid::String)::Nothing
     return nothing
 end
 
-function is_valid_nsid(nsid::String)::Bool
+function is_valid_nsid(nsid)
     !all(valid_nsid_char, nsid) && return false
     length(nsid) > 317 && return false
 
@@ -70,13 +70,13 @@ function is_valid_nsid(nsid::String)::Bool
     return true
 end
 
-function ensure_valid_nsid_regex(nsid::String; pattern=NSID_RX)::Nothing
+function ensure_valid_nsid_regex(nsid; pattern=NSID_RX)
     isnothing(match(pattern, nsid)) && error("NSID didn't validate via regex")
     length(nsid) > 317 && error("NSID is too long (317 characters max)")
     return nothing
 end
 
-function is_valid_nsid_regex(nsid::String; pattern=NSID_RX)::Bool
+function is_valid_nsid_regex(nsid; pattern=NSID_RX)
     isnothing(match(pattern, nsid)) && return false
     length(nsid) > 317 && return false
     return true

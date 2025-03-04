@@ -57,7 +57,7 @@ julia> valid_did_chars("#did")
 false
 ```
 """
-valid_did_chars(did::String; pattern=DID_CHARS_RX)::Bool = !isnothing(match(pattern, did))
+valid_did_chars(did; pattern=DID_CHARS_RX) = !isnothing(match(pattern, did))
 
 """
 ensure_valid_did(did::String)::Nothing
@@ -92,7 +92,7 @@ julia> ensure_valid_did(bad_did)
 ERROR: ...
 ```
 """
-function ensure_valid_did(did::String)::Nothing 
+function ensure_valid_did(did) 
     !startswith(did, "did:") && error("DID requires 'did:' prefix")
 
     !all(valid_did_char, did) && error("Disallowed characters in DID (ASCII letters, digits, - : % . _ only)")
@@ -129,7 +129,7 @@ julia> is_valid_did(":::")
 false
 ```
 """
-function is_valid_did(did::String)::Bool
+function is_valid_did(did)
     !startswith(did, "did:") && return false
     !all(valid_did_char, did) && return false    
     (endswith(did, ':') || endswith(did, '%')) && return false
@@ -166,7 +166,7 @@ julia> ensure_valid_did(bad_did)
 ERROR: ...
 ```
 """
-function ensure_valid_did_regex(did::String; pattern=DID_RX)::Nothing
+function ensure_valid_did_regex(did; pattern=DID_RX)
     isnothing(match(pattern, did)) && error("DID didn't validate via regex")
     length(did) > 2048 && error("DID is too long (2048 characters max)")
     return nothing
@@ -194,7 +194,7 @@ julia> is_valid_did_regex(bad_did)
 false
 ```
 """
-function is_valid_did_regex(did::String; pattern=DID_RX)::Bool
+function is_valid_did_regex(did; pattern=DID_RX)
     isnothing(match(pattern, did)) && return false
     length(did) > 2048 && return false
     return true

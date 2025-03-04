@@ -75,7 +75,7 @@ julia> valid_handle_chars("no-tld")
 false
 ```
 """
-valid_handle_chars(handle::String; pattern=HANDLE_CHARS_RX)::Bool = !isnothing(match(pattern, handle))
+valid_handle_chars(handle; pattern=HANDLE_CHARS_RX)::Bool = !isnothing(match(pattern, handle))
 
 """
 ensure_valid_handle(handle::String)::Bool
@@ -113,7 +113,7 @@ julia> ensure_valid_handle("no-tld")
 false
 ```
 """
-function is_valid_handle(handle::String)::Bool
+function is_valid_handle(handle)::Bool
     !all(valid_handle_char, handle) && return false
 
     length(handle) > 253 && return false
@@ -168,7 +168,7 @@ julia> ensure_valid_handle("no-tld")
 ERROR: ...
 ```
 """
-function ensure_valid_handle(handle::String)::Nothing
+function ensure_valid_handle(handle)::Nothing
     !all(valid_handle_char, handle) && error("Disallowed characters in handle (ASCII letters, digits, dashes, periods only)")
     
     length(handle) > 253 && error("Handle is too long (253 chars max)")
@@ -207,7 +207,7 @@ julia> is_valid_handle_regex("no-tld")
 false
 ```
 """
-function is_valid_handle_regex(handle::String; pattern::Regex=VALID_HANDLE_RX)::Bool
+function is_valid_handle_regex(handle; pattern=VALID_HANDLE_RX)::Bool
     isnothing(match(pattern, handle)) && return false
     length(handle) > 253 && return false
 
@@ -234,7 +234,7 @@ julia> ensure_valid_handle_regex("no-tld")
 ERROR: ...
 ```
 """
-function ensure_valid_handle_regex(handle::String; pattern::Regex=VALID_HANDLE_RX)::Nothing
+function ensure_valid_handle_regex(handle; pattern=VALID_HANDLE_RX)::Nothing
     isnothing(match(pattern, handle)) && error("Handle didn't validate via regex")
     length(handle) > 253 && error("Handle is too long (253 chars max)")
 
@@ -261,7 +261,7 @@ julia> normalize_handle("Example.com")
 "example.com"
 ```
 """
-normalize_handle(handle::String)::String = lowercase(handle)
+normalize_handle(handle) = lowercase(handle)
 
 """
 normalize_and_ensure_valid_handle(handle::String)::Bool
@@ -282,7 +282,7 @@ julia> normalize_and_ensure_valid_handle("no-tld")
 false
 ```
 """
-function normalize_and_ensure_valid_handle(handle::String)::Nothing
+function normalize_and_ensure_valid_handle(handle)::Nothing
     normalized = normalize_handle(handle)
     return ensure_valid_handle(normalized)
 end
@@ -306,4 +306,4 @@ julia> is_valid_tld("handle.invalid")
 false
 ```
 """
-is_valid_tld(handle::String)::Bool = !any(endswith(handle), DISALLOWED_TLDS)
+is_valid_tld(handle)::Bool = !any(endswith(handle), DISALLOWED_TLDS)
