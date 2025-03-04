@@ -114,40 +114,19 @@ false
 ```
 """
 function is_valid_handle(handle::String)::Bool
-    if !all(valid_handle_char, handle)
-        @error "Disallowed characters in handle (ASCII letters, digits, dashes, periods only)"
-        return false
-    end
+    !all(valid_handle_char, handle) && return false
 
-    if length(handle) > 253
-        @error "Handle is too long (253 chars max)"
-        return false
-    end
+    length(handle) > 253 && return false
     
     labels = split(handle, '.')
-    if length(labels) < 2
-        @error "Handle domain needs at least two parts" 
-        return false
-    end
+    length(labels) < 2 && return false
 
-    if !isletter(first(last(labels)))
-        @error "Handle final component (TLD) must start with an ASCII letter" 
-        return false
-    end
+    !isletter(first(last(labels))) && return false
 
     for label in labels
-        if isempty(label)
-            @error "Handle parts cannot be empty"
-            return false
-        end
-        if length(label) > 63
-            @error "Handle part too long (max 63 chars)"
-            return false
-        end
-        if startswith(label, '-') || endswith(label, '-') 
-            @error "Handle parts cannot start or end with hyphens"
-            return false
-        end
+        isempty(label) && return false
+        length(label) > 63 && return false
+        (startswith(label, '-') || endswith(label, '-')) && return false
     end
 
     return true
@@ -172,7 +151,7 @@ Handle constraints, in English:
     - domains (handles) are equal if they are the same lower-case
     - punycode allowed for internationalization
 - no whitespace, null bytes, joining chars, etc
-- does not validate whether domain or TLD exists, or is a reserved or special TLD (eg, .onion or .local)
+- does not validate if domain or TLD exists, or is a reserved or special TLD (eg, .onion or .local)
 - does not validate punycode
 
 # Arguments
@@ -229,15 +208,8 @@ false
 ```
 """
 function is_valid_handle_regex(handle::String; pattern::Regex=VALID_HANDLE_RX)::Bool
-    if isnothing(match(pattern, handle))
-        @error "Handle didn't validate via regex"
-        return false
-    end
-        
-    if length(handle) > 253
-        @error "Handle is too long (253 chars max)"
-        return false
-    end
+    isnothing(match(pattern, handle)) && return false
+    length(handle) > 253 && return false
 
     return true
 end
@@ -335,35 +307,3 @@ false
 ```
 """
 is_valid_tld(handle::String)::Bool = !any(endswith(handle), DISALLOWED_TLDS)
-
-"""
-is_valid_handle(handle::String)::Bool
-
-Test handle for validity.
-
-# Arguments
-- `handle::String`: Handle string
-
-# Returns
-- `::Bool`: Returns false if ensure_valid_handle throws
-
-# Examples
-```julia-repl
-julia> is_valid_handle("example.com")
-true
-julia> is_valid_handle("no-tld")
-false
-```
-"""
-function is_valid_handle(handle::String)::Bool
-    try
-        _ = ensure_valid_handle(handle)
-    catch ex
-        if isa(ex, ErrorException)
-            return false
-        else
-            rethrow(ex)
-        end
-    end
-    return true
-end

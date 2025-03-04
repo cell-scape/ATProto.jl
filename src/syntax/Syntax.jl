@@ -1,7 +1,7 @@
 module Syntax
 
 include("handle.jl")
-#include("did.jl")
+include("did.jl")
 #include("nsid.jl")
 #include("aturi.jl")
 #include("tld.jl")
