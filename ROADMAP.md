@@ -61,10 +61,15 @@ Identifiers and primitives, zero non-stdlib dependencies:
 - [ ] Key rotation / recovered keys (`Secp256k1Recovery`) — deferred to M4 (PLC)
 - [x] Fixtures generated from multiformats/@noble (the TS reference's own deps)
 
-### M3 — DAG-CBOR (`atproto-py` dag_cbor, spec: atproto.com/specs/repository)
-- [ ] Canonical encoder (definite lengths, no float16/32, minimal-int rules)
-- [ ] Decoder with tag-42 CID round-trip and strict mode
-- [ ] Determinism tests vs. cross-implementation fixtures
+### M3 — DAG-CBOR (`@ipld/dag-cbor`, spec: ipld.io/specs/codecs/dag-cbor) — ✅ DONE
+- [x] Canonical encoder (definite lengths only, float64 only, minimal-int rules,
+      RFC 7049 length-first map-key ordering)
+- [x] Strict decoder: rejects indefinite lengths, float16/32, unknown/bignum
+      tags, non-string/unsorted/duplicate map keys, bad UTF-8, trailing bytes;
+      tag-42 CID round-trip with 0x00 identity-prefix validation
+- [x] 34 reference fixtures from @ipld/dag-cbor (the TS reference's codec),
+      covering the full int range, unicode, bytes, nested structures, CIDs
+- [x] Full native Int64/UInt64 support (a superset of the JS codec's ±2^53)
 
 ### M4 — DID (`packages/did`)
 - [ ] DID document model + parsing (alsoKnownAs, verificationMethod, service)

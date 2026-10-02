@@ -51,6 +51,42 @@ with open(dst, "w") as out:
         w(f"    (name = :{v['name']}, bytes_hex = \"{v['bytesHex']}\"),\n")
     w("  ],\n")
 
+    def value_lit(v):
+        t = v["t"]
+        if t == "i":
+            return f"(t = :i, v = {v['v']})"
+        if t == "f":
+            return f"(t = :f, v = {v['v']!r})"
+        if t == "s":
+            esc = v["v"].replace("\\", "\\\\").replace('\"', '\\"')
+            return f'(t = :s, v = "{esc}")'
+        if t == "b":
+            return f"(t = :b, hex = \"{v['hex']}\")"
+        if t == "bool":
+            return f"(t = :bool, v = {'true' if v['v'] else 'false'})"
+        if t == "nul":
+            return "(t = :nul,)"
+        if t == "cid":
+            return f'(t = :cid, string = "{v['string']}")'
+        if t == "arr":
+            items = ", ".join(value_lit(x) for x in v["v"])
+            return f"(t = :arr, v = [{items}])"
+        if t == "map":
+            pairs = ", ".join(
+                f'"{k.replace('\"', '\\\" ')} " ' for k in v["v"]
+            )  # placeholder, replaced below
+            pairs = ", ".join(
+                '"%s" => %s' % (k.replace("\\", "\\\\").replace('\"', '\\"'), value_lit(val))
+                for k, val in v["v"].items()
+            )
+            return f"(t = :map, v = [{pairs}])"
+        raise ValueError(f"unknown fixture type {t}")
+
+    w("  dagcbor2 = [\n")
+    for v in f["dagcbor2"]:
+        w(f"    (name = :{v['name']}, value = {value_lit(v['value'])}, bytes_hex = \"{v['bytesHex']}\"),\n")
+    w("  ],\n")
+
     w(")\n")
 
 print(f"regenerated {dst}")
