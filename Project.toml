@@ -1,13 +1,24 @@
 name = "ATProto"
 uuid = "b9748a49-c99f-4b75-8d55-c29ea4dd92af"
+version = "0.1.0"
 authors = ["Bradley Dowling <brad.dowling@protonmail.com> and contributors"]
-version = "1.0.0-DEV"
 
 [compat]
-julia = "1.10.10"
+julia = "1.10"
+Dates = "1"
+Aqua = "0.8"
+JET = "0.12"
+ParallelTestRunner = "2"
+Test = "1"
+
+[deps]
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 
 [extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Aqua", "JET", "ParallelTestRunner", "Test"]

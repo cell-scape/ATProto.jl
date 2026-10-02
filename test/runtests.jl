@@ -1,6 +1,4 @@
 using ATProto
-using Test
+using ParallelTestRunner
 
-@testset "ATProto.jl" begin
-    # Write your tests here.
-end
+runtests(ATProto, ARGS)
