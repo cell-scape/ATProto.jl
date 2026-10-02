@@ -134,7 +134,7 @@ end
 
 Base.UInt64(tid::TID)::UInt64 = parse_tid(tid.value)
 Base.string(tid::TID)::String = tid.value
-Base.print(io::IO, tid::TID) = print(io, tid.value)
+Base.show(io::IO, tid::TID) = print(io, tid.value)
 Base.:(==)(a::TID, b::TID) = a.value == b.value
 Base.:(==)(a::TID, b::AbstractString) = a.value == b
 Base.:(==)(a::AbstractString, b::TID) = a == b.value

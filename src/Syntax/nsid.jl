@@ -165,7 +165,7 @@ nsid_name(nsid::NSID)::String = last(nsid.segments)
 nsid_name(nsid::AbstractString)::String = nsid_name(NSID(nsid))
 
 Base.string(nsid::NSID)::String = join(nsid.segments, ".")
-Base.print(io::IO, nsid::NSID) = print(io, string(nsid))
+Base.show(io::IO, nsid::NSID) = print(io, string(nsid))
 Base.:(==)(a::NSID, b::NSID) = string(a) == string(b)
 Base.:(==)(a::NSID, b::AbstractString) = string(a) == b
 Base.:(==)(a::AbstractString, b::NSID) = a == string(b)

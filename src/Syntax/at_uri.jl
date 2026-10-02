@@ -145,13 +145,17 @@ end
     at_uri(host, collection="", rkey="") -> AtURI
 
 Build an [`AtURI`](@ref) from a host (handle or DID) and optional collection
-NSID and record key. Mirrors `AtUri.make` in the TypeScript reference.
+NSID and record key. `collection` may be an `NSID` and `rkey` may be a `TID`.
+Mirrors `AtUri.make` in the TypeScript reference.
 """
-function at_uri(host::AbstractString, collection::AbstractString = "",
-               rkey::AbstractString = "")::AtURI
+function at_uri(host::AbstractString,
+               collection::Union{AbstractString,NSID} = "",
+               rkey::Union{AbstractString,TID} = "")::AtURI
+    collection_s = collection isa NSID ? string(collection) : String(collection)
+    rkey_s = rkey isa TID ? string(rkey) : String(rkey)
     parts = String[]
-    !isempty(collection) && push!(parts, String(collection))
-    !isempty(rkey) && push!(parts, String(rkey))
+    !isempty(collection_s) && push!(parts, collection_s)
+    !isempty(rkey_s) && push!(parts, rkey_s)
     pathname = isempty(parts) ? "" : "/" * join(parts, "/")
     return AtURI(host, pathname, Pair{String,String}[], "")
 end
@@ -240,6 +244,7 @@ function Base.string(uri::AtURI)::String
 end
 
 Base.print(io::IO, uri::AtURI) = print(io, string(uri))
+Base.show(io::IO, uri::AtURI) = print(io, string(uri))
 Base.:(==)(a::AtURI, b::AtURI) = string(a) == string(b)
 Base.:(==)(a::AtURI, b::AbstractString) = string(a) == b
 Base.:(==)(a::AbstractString, b::AtURI) = a == string(b)
