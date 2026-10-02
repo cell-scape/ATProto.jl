@@ -52,12 +52,14 @@ Identifiers and primitives, zero non-stdlib dependencies:
 - [x] Language (BCP 47 grammar + strict parse)
 - [x] Tests ported from TS/Go test suites
 
-### M2 — Crypto (`packages/crypto`, `indigo/atproto/crypto`)
-- [ ] Varint, multibase (base32, base58btc, base64pad/urlpad)
-- [ ] Multihash (sha2-256), CID v0/v1 (dag-cbor, sha2-256)
-- [ ] `did:key` parsing/encoding (p256, secp256k1), Multikey
-- [ ] Signatures: secp256k1 + P-256 (evaluate OpenSSL.jl vs pure-Julia EC)
-- [ ] Key rotation / recovered keys (`Secp256k1Recovery`)
+### M2 — Crypto (`packages/crypto`, `indigo/atproto/crypto`) — ✅ DONE
+- [x] Varint, multibase (base16/32/58btc/64 variants, all 9 multibase prefixes)
+- [x] Multihash (sha2-256, identity), CID v0/v1 with codec registry
+- [x] `did:key` / multikey parsing & formatting (p256 0x8024, secp256k1 0xe7)
+- [x] Signatures: secp256k1 + P-256 via libcrypto (OpenSSL 3) — compact
+      r||s, low-S normalization, strict verification (malleable opt-in)
+- [ ] Key rotation / recovered keys (`Secp256k1Recovery`) — deferred to M4 (PLC)
+- [x] Fixtures generated from multiformats/@noble (the TS reference's own deps)
 
 ### M3 — DAG-CBOR (`atproto-py` dag_cbor, spec: atproto.com/specs/repository)
 - [ ] Canonical encoder (definite lengths, no float16/32, minimal-int rules)

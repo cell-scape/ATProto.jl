@@ -3,16 +3,24 @@ uuid = "b9748a49-c99f-4b75-8d55-c29ea4dd92af"
 version = "0.1.0"
 authors = ["Bradley Dowling <brad.dowling@protonmail.com> and contributors"]
 
-[compat]
-julia = "1.10"
-Dates = "1"
-Aqua = "0.8"
-JET = "0.12"
-ParallelTestRunner = "2"
-Test = "1"
-
 [deps]
+Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+OpenSSL = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
+OpenSSL_jll = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+
+[compat]
+Aqua = "0.8"
+Base64 = "1.11.0"
+Dates = "1"
+JET = "0.12"
+OpenSSL = "1.6.1"
+OpenSSL_jll = "3.5.6"
+ParallelTestRunner = "2"
+SHA = "1.0.0"
+Test = "1"
+julia = "1.10"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"

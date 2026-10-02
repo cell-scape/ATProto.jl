@@ -10,16 +10,23 @@ See `ROADMAP.md` for the milestone plan. Current coverage:
 
 - `ATProto.Syntax` — identifier and primitive syntax types: DIDs, handles,
   NSIDs, TIDs, record keys, AT-URIs, datetimes, and language tags.
+- `ATProto.Crypto` — varints, multibase, multihashes, CIDs, `did:key`
+  multikeys, and ECDSA (P-256 / secp256k1) via libcrypto.
 """
 module ATProto
 
 include("Syntax/Syntax.jl")
 using .Syntax
 
-# Re-export the full Syntax API at the top level.
-for name in names(Syntax; all = false)
-    @eval using .Syntax: $name
-    @eval export $name
+include("Crypto/Crypto.jl")
+using .Crypto
+
+# Re-export module APIs at the top level.
+for mod in (:Syntax, :Crypto)
+    for name in names(getfield(@__MODULE__, mod); all = false)
+        @eval using .$(mod): $name
+        @eval export $name
+    end
 end
 
 end # module
