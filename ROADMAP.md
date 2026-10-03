@@ -130,12 +130,21 @@ Identifiers and primitives, zero non-stdlib dependencies:
 - [x] BlobRef: typed + legacy JSON forms, IPLD form (empty-string CID key)
 - [x] Stress test: all 407 official lexicons parse and every ref resolves
 
-### M8 — Repo (`packages/repo`, `indigo/{mst,repo,car,events}`)
-- [ ] Block storage abstraction (`BlockStore`, memory + disk)
-- [ ] MST: insert/remove/diff with tree-sharding, edit distance proof
-- [ ] CAR: read/write (v1, v2), `CarBlockReader`/`Writer`, deferral
-- [ ] Commit signing/verification, `DataDiff`, repo parse/read
-- [ ] `applyWrites` semantics (puts/dels with MST/CAR updates)
+### M8 — Repo (`packages/repo`, `indigo/{mst,repo,car}`) — ✅ DONE
+- [x] Block storage: AbstractBlockStore + MemoryBlockStore + ordered BlockMap
+- [x] MST: full add/update/delete/get with structural layer logic (splits,
+      merges, layer jumps, trim-top), lazy subtree loading, prefix-compressed
+      CBOR node serialization, walks/lists/cids-for-path/unstored-blocks
+- [x] Verified byte-for-byte against indigo's cross-language interop vectors
+      (known root CIDs, trim-top, insertion splits, layer jumps)
+- [x] DataDiff (leaf-level add/update/delete between two MST states)
+- [x] CAR v1 read/write + v2 read (11-byte pragma, 40-byte header) and write
+- [x] Commits: create/sign (ES256K compact over unsigned commit digest),
+      load, verify, and full prev-chain verification
+- [x] Property-based testing (Supposition.jl): MST insert-order independence,
+      delete-matches-fresh-build, add-delete roundtrip, sorted leaves, diff
+      counts, codec/CID/DAG-CBOR round trips
+- [ ] applyWrites endpoint semantics — lands with M9's agent
 
 ### M9 — API client (`packages/api`, `atproto-py` client)
 - [ ] Generated namespaces from lexicon docs (codegen script, typed structs)

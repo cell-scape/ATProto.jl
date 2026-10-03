@@ -26,15 +26,17 @@ OpenSSL_jll = "3.5.6"
 ParallelTestRunner = "2"
 SHA = "1.0.0"
 Sockets = "1.11.0"
+Supposition = "0.3"
 Test = "1"
 URIs = "1.7.0"
 julia = "1.10"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Supposition = "5a0628fe-1738-4658-9b6d-0b7605a9755b"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "JET", "ParallelTestRunner", "Test"]
+test = ["Aqua", "JET", "ParallelTestRunner", "Supposition", "Test"]
