@@ -64,8 +64,11 @@ export ATProtoCryptoError,
     sign_message,
     sign_digest,
     verify_sig,
+    verify_sig_digest,
     verify_did_sig,
     random_bytes,
+    ripemd160,
+    recover_pubkey,
     MULTICODEC_MULTIKEY,
     MULTICODEC_SECP256K1_PUB
 
@@ -77,5 +80,7 @@ include("digest.jl")
 include("cid.jl")
 include("didkey.jl")
 include("ecc.jl")
+include("ripemd160.jl")
+include("recovery.jl")
 
 end # module

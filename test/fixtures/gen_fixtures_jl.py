@@ -82,6 +82,32 @@ with open(dst, "w") as out:
             return f"(t = :map, v = [{pairs}])"
         raise ValueError(f"unknown fixture type {t}")
 
+    w("  recovery = [\n")
+    for v in f.get("recovery", []):
+        w(f"    (priv_hex = \"{v['priv_hex']}\", digest_hex = \"{v['digest_hex']}\", "
+          f"sig65_hex = \"{v['sig65_hex']}\", recid = {v['recid']}, "
+          f"pub_uncompressed = \"{v['pub_uncompressed_hex']}\"),\n")
+    w("  ],\n")
+
+    w("  ripemd160 = [\n")
+    for v in f.get("ripemd160", {}).get("vectors", []):
+        w(f"    (input_hex = \"{v['input_hex']}\", digest_hex = \"{v['digest_hex']}\"),\n")
+    w("  ],\n")
+
+    if "plc" in f:
+        plc = f["plc"]
+        w("  plc = (\n")
+        w(f"    genesis_did = \"{plc['genesis_did']}\",\n")
+        w(f"    genesis_op_bytes = \"{plc['genesis_op_bytes_hex']}\",\n")
+        w(f"    genesis_digest = \"{plc['genesis_digest_hex']}\",\n")
+        w(f"    ripemd_available = {str(plc['ripemd_available']).lower()},\n")
+        w(f"    legacy_create_sig = \"{plc['legacy_create']['sig']}\",\n")
+        w(f"    op1_bytes = \"{plc['op1_bytes_hex']}\",\n")
+        w(f"    op1_digest = \"{plc['op1_digest_hex']}\",\n")
+        w(f"    op1_sigs = [{', '.join('\"%s\"' % s for s in plc['operation']['sigs'])}],\n")
+        w(f"    rotation_keys = [{', '.join('\"%s\"' % k for k in plc['rotation_keys'])}],\n")
+        w("  ),\n")
+
     w("  dagcbor2 = [\n")
     for v in f["dagcbor2"]:
         w(f"    (name = :{v['name']}, value = {value_lit(v['value'])}, bytes_hex = \"{v['bytesHex']}\"),\n")

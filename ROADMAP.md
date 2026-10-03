@@ -71,11 +71,22 @@ Identifiers and primitives, zero non-stdlib dependencies:
       covering the full int range, unicode, bytes, nested structures, CIDs
 - [x] Full native Int64/UInt64 support (a superset of the JS codec's ±2^53)
 
-### M4 — DID (`packages/did`)
-- [ ] DID document model + parsing (alsoKnownAs, verificationMethod, service)
-- [ ] `did:plc` resolver + PLC operation types (`LegacyCreate`, `Operation`)
-- [ ] `did:web` resolver; `PlcClient` for plc.directory API
-- [ ] DID resolution caching
+### M4 — DID (`packages/did`, `packages/identity`) — ✅ DONE
+- [x] did:plc / did:web / atproto DID validation (ports of packages/did:
+      plc base32 [a-z2-7] length rules, web URL building incl. %3A ports &
+      localhost http, atproto path/port restrictions)
+- [x] DidDocument model + strict parsing (id match, duplicate service ids)
+- [x] AtprotoData extraction: handle, signing key (Multikey/EcdsaSecp256r1/
+      EcdsaSecp256k1 verification methods), PDS/notif/feedgen endpoints
+- [x] PlcResolver / WebResolver / DidResolver with injectable transport;
+      stale-while-revalidate DidMemoryCache (stale 1h / max 24h defaults)
+- [x] PlcClient: getDocument / getLastOperation / getAuditLog / getOps
+- [x] PLC operation verification: LegacyCreate (secp256k1 recoverable sig via
+      new recover_pubkey + genesis did derivation via pure-Julia ripemd160),
+      Operation/Tombstone rotation-key sigs (verify_sig_digest)
+- [x] Crypto additions: ripemd160, recover_pubkey, verify_sig_digest
+- [x] noble-generated cross-implementation fixtures (recovery, ripemd160,
+      PLC genesis + operations)
 
 ### M5 — Identity (`packages/identity`)
 - [ ] Handle→DID: DNS TXT `_atproto.<handle>`, `https://<handle>/.well-known/atproto-did`

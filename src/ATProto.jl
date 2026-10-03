@@ -24,8 +24,11 @@ using .Crypto
 include("DagCbor/DagCbor.jl")
 using .DagCbor
 
+include("DID/DID.jl")
+using .DID
+
 # Re-export module APIs at the top level.
-for mod in (:Syntax, :Crypto, :DagCbor)
+for mod in (:Syntax, :Crypto, :DagCbor, :DID)
     for name in names(getfield(@__MODULE__, mod); all = false)
         @eval using .$(mod): $name
         @eval export $name

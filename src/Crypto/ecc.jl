@@ -305,7 +305,7 @@ function _pub_key(::Type{K}, pub_bytes::AbstractVector{UInt8}) where {K<:Abstrac
     ctx = BN_CTX_new()
     try
         ok = ccall((:EC_POINT_oct2point, libcrypto), Cint,
-                   (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}),
+                   (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{UInt8}, Csize_t, Ptr{Cvoid}),
                    group, point, pointer(pub_bytes), Csize_t(length(pub_bytes)), ctx)
         ok == 1 || throw(ArgumentError("invalid public key point"))
         EC_KEY_set_public_key(key.ptr, point) == 1 || error("EC_KEY_set_public_key failed")
@@ -314,6 +314,54 @@ function _pub_key(::Type{K}, pub_bytes::AbstractVector{UInt8}) where {K<:Abstrac
         BN_CTX_free(ctx)
     end
     return key
+end
+
+"""
+    verify_sig_digest(public_key, digest, sig; jwt_alg, allow_malleable=false) -> Bool
+
+Verify a compact ECDSA signature over an already-computed 32-byte digest
+(the prehashed counterpart to [`verify_sig`](@ref)).
+"""
+function verify_sig_digest(public_key::AbstractVector{UInt8}, digest::AbstractVector{UInt8},
+                           sig::AbstractVector{UInt8}; jwt_alg::AbstractString,
+                           allow_malleable::Bool = false)::Bool
+    length(digest) == 32 || return false
+    info = _curve(jwt_alg)
+    strict = !allow_malleable
+    if strict
+        length(sig) == 64 || return false
+        s = sig[33:64]
+        s <= info.half_order || return false
+    end
+    return _verify_digest_raw(public_key, digest, sig, jwt_alg)
+end
+
+function _verify_digest_raw(public_key::AbstractVector{UInt8}, digest::AbstractVector{UInt8},
+                            sig::AbstractVector{UInt8}, jwt_alg::AbstractString)::Bool
+    K = jwt_alg == "ES256" ? P256Key : Secp256k1Key
+    key = try
+        _pub_key(K, public_key)
+    catch
+        return false
+    end
+    r_bn = C_NULL
+    s_bn = C_NULL
+    ec_sig = C_NULL
+    try
+        r_bn = _bn_from_bytes(sig[1:32])
+        s_bn = _bn_from_bytes(sig[33:end])
+        ec_sig = ECDSA_SIG_new()
+        ECDSA_SIG_set0(ec_sig, r_bn, s_bn) == 1 || error("ECDSA_SIG_set0 failed")
+        r_bn = C_NULL
+        s_bn = C_NULL
+        return ECDSA_do_verify(pointer(digest), Cint(32), ec_sig, key.ptr) == 1
+    catch
+        return false
+    finally
+        ec_sig != C_NULL && ECDSA_SIG_free(ec_sig)
+        r_bn != C_NULL && BN_clear_free(r_bn)
+        s_bn != C_NULL && BN_clear_free(s_bn)
+    end
 end
 
 """
@@ -330,35 +378,10 @@ function verify_sig(public_key::AbstractVector{UInt8}, msg::AbstractVector{UInt8
     strict = !allow_malleable
     if strict
         length(sig) == 64 || return false
-        # low-S: s (second half) must be <= half order
         s = sig[33:64]
         s <= info.half_order || return false
     end
-    K = jwt_alg == "ES256" ? P256Key : Secp256k1Key
-    key = try
-        _pub_key(K, public_key)
-    catch
-        return false
-    end
-    r_bn = C_NULL
-    s_bn = C_NULL
-    ec_sig = C_NULL
-    try
-        r_bn = _bn_from_bytes(sig[1:32])
-        s_bn = _bn_from_bytes(sig[33:end])
-        ec_sig = ECDSA_SIG_new()
-        ECDSA_SIG_set0(ec_sig, r_bn, s_bn) == 1 || error("ECDSA_SIG_set0 failed")
-        r_bn = C_NULL  # ownership transferred
-        s_bn = C_NULL
-        digest = sha256(msg)
-        return ECDSA_do_verify(pointer(digest), Cint(32), ec_sig, key.ptr) == 1
-    catch
-        return false
-    finally
-        ec_sig != C_NULL && ECDSA_SIG_free(ec_sig)
-        r_bn != C_NULL && BN_clear_free(r_bn)
-        s_bn != C_NULL && BN_clear_free(s_bn)
-    end
+    return _verify_digest_raw(public_key, sha256(msg), sig, jwt_alg)
 end
 
 """
