@@ -98,11 +98,21 @@ Identifiers and primitives, zero non-stdlib dependencies:
 - [x] resolve_identity: bidirectional verification (handle -> did -> doc
       alsoKnownAs match, case-insensitive) with IdentityMismatchError
 
-### M6 — XRPC (`packages/xrpc`, `indigo/xrpc`)
-- [ ] Client: `get`/`proc` with query/body encoding, `XRPCError` responses
-- [ ] Parameter type coercion from lexicons (`integer`, `boolean`, `string`)
-- [ ] Auth: `createSession`/`refreshSession`, automatic refresh on 401, `getAuthSession`
-- [ ] `subscribe` (WebSocket, binary frames, ops streaming)
+### M6 — XRPC (`packages/xrpc`) — ✅ DONE
+- [x] XRPCClient with injectable transport: get/proc calls, query param
+      encoding per lexicon types (string/float/integer/boolean/datetime,
+      repeating keys for arrays; ordered Vector{Pair} or sorted Dict params)
+- [x] Body encoding: lex JSON, text/*, raw bytes; response parsing by
+      content type (JSON -> lex values incl $bytes/$link markers, text, bytes)
+- [x] XRPCError with status/error/message/headers + response-type names
+- [x] Lexicon JSON serialization layer (serialize_lex/parse_lex):
+      DagBytes <-> {"$bytes"} (unpadded base64), CID <-> {"$link"}
+- [x] AuthSession: createSession/refreshSession; SessionClient with
+      automatic 401 -> refresh -> retry-once
+- [x] subscribe_url building (ws/wss) + WebSocket frame iterator with
+      split_frame DAG-CBOR header/payload decoding (stream decoder)
+- [ ] WebSocket auto-reconnect/backoff — deferred to M12 (firehose) where
+      the full policy from @atproto/ws-client lands
 
 ### M7 — Lexicon (`packages/lexicon`)
 - [ ] Lexicon schema model: `XrpcQuery/Procedure`, `Record`, `Object`, refs, unions

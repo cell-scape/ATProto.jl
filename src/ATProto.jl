@@ -30,8 +30,11 @@ using .DID
 include("Identity/Identity.jl")
 using .Identity
 
+include("XRPC/XRPC.jl")
+using .XRPC
+
 # Re-export module APIs at the top level.
-for mod in (:Syntax, :Crypto, :DagCbor, :DID, :Identity)
+for mod in (:Syntax, :Crypto, :DagCbor, :DID, :Identity, :XRPC)
     for name in names(getfield(@__MODULE__, mod); all = false)
         @eval using .$(mod): $name
         @eval export $name
