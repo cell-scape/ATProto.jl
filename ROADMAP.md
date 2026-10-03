@@ -88,10 +88,15 @@ Identifiers and primitives, zero non-stdlib dependencies:
 - [x] noble-generated cross-implementation fixtures (recovery, ripemd160,
       PLC genesis + operations)
 
-### M5 — Identity (`packages/identity`)
-- [ ] Handle→DID: DNS TXT `_atproto.<handle>`, `https://<handle>/.well-known/atproto-did`
-- [ ] DID→handle (from DID doc alsoKnownAs) + bidirectional verification
-- [ ] `IdentityResolver` with caching + TTL, `InvalidHandleError` paths
+### M5 — Identity (`packages/identity`) — ✅ DONE
+- [x] Minimal RFC 1035 DNS TXT client (Sockets has no record lookups):
+      query builder, response parser (compression pointers, chunked TXT
+      re-joining), system nameserver discovery, UDP query with timeout
+- [x] HandleResolver: DNS TXT -> HTTPS well-known -> backup nameservers,
+      exactly-one-`did=`-record rule, injectable dns/fetch for offline tests
+- [x] IdResolver (DidResolver + HandleResolver sharing config)
+- [x] resolve_identity: bidirectional verification (handle -> did -> doc
+      alsoKnownAs match, case-insensitive) with IdentityMismatchError
 
 ### M6 — XRPC (`packages/xrpc`, `indigo/xrpc`)
 - [ ] Client: `get`/`proc` with query/body encoding, `XRPCError` responses
