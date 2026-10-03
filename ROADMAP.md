@@ -114,11 +114,21 @@ Identifiers and primitives, zero non-stdlib dependencies:
 - [ ] WebSocket auto-reconnect/backoff — deferred to M12 (firehose) where
       the full policy from @atproto/ws-client lands
 
-### M7 — Lexicon (`packages/lexicon`)
-- [ ] Lexicon schema model: `XrpcQuery/Procedure`, `Record`, `Object`, refs, unions
-- [ ] Record/params/body validation (types, closures, known/required fields)
-- [ ] BlobRef: legacy + new (`$link`/`$bytes`) parsing + validation
-- [ ] Lexicon doc loading from `docs/reference/atproto/lexicons`
+### M7 — Lexicon (`packages/lexicon`) — ✅ DONE
+- [x] Lexicon doc parsing/validation (defs structure, main-def placement
+      rule, string formats, array/ref/union shapes); docs kept as parsed
+      JSON dicts (exactly what the validators consume)
+- [x] Lexicons collection: registration with doc-relative (#main) ref
+      rewriting, cross-document def resolution in both #main forms
+- [x] Full validator suite: primitives (boolean/integer/string with const,
+      enum, bounds; minLength/maxLength count UTF-8 bytes, min/maxGraphemes
+      via stdlib grapheme segmentation; all 11 string formats), bytes,
+      cid-link, unknown, token, arrays, objects (required/nullable/defaults
+      with lazy shallow cloning), refs, unions (open pass-through, closed
+      rejection, #main matching in both directions), blobs (BlobRef values)
+- [x] XRPC entry points: assertValidRecord/Params/Input/Output
+- [x] BlobRef: typed + legacy JSON forms, IPLD form (empty-string CID key)
+- [x] Stress test: all 407 official lexicons parse and every ref resolves
 
 ### M8 — Repo (`packages/repo`, `indigo/{mst,repo,car,events}`)
 - [ ] Block storage abstraction (`BlockStore`, memory + disk)
