@@ -196,10 +196,19 @@ Identifiers and primitives, zero non-stdlib dependencies:
 - [ ] Client registration endpoint (RFC 7591) — deferred (most atproto
       clients use discoverable client IDs)
 
-### M12 — Jetstream / Firehose (`jetstream`, `indigo/events`)
-- [ ] WebSocket subscriber with reconnect/backoff + cursor management
-- [ ] Event parsing (`#commit` ops: create/update/delete, identity, account, info)
-- [ ] Typed callbacks + filtering by collection/DID
+### M12 — Jetstream / Firehose (`jetstream`, `indigo/events`) — ✅ DONE
+- [x] FirehoseEvent types: CommitEvent (create/update/delete with collection,
+      rkey, CID), IdentityEvent, AccountEvent, SyncEvent
+- [x] parse_firehose_frame: DAG-CBOR frame header/payload decoding (using
+      XRPC.split_frame), op=1/#commit/#identity/#account/#sync dispatch,
+      op=2/#info handling
+- [x] firehose_to_jetstream_json: JSON wire format conversion matching
+      the jetstream server shape
+- [x] jetstream_subscribe: WebSocket loop with exponential backoff reconnect
+      (min/max bounds), cursor persistence across reconnects, collection/DID
+      filtering via query params, callback-driven (:stop to end)
+- [ ] Full CAR block extraction from commit events (record bytes live in the
+      blocks CAR inside the event; jetstream serves them inline as JSON)
 
 ### M13 — Polish
 - [ ] Documenter docs, docstrings for all public API
