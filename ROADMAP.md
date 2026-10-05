@@ -165,10 +165,18 @@ Identifiers and primitives, zero non-stdlib dependencies:
 - [ ] Pagination cursor helpers — deferred (thin: pass cursor= kwarg)
 - [ ] Proxy headers (atproto-protocol) — deferred to OAuth milestone
 
-### M10 — RichText (`packages/api` richtext, `atproto-py` rich_text)
-- [ ] UTF-8 ↔ UTF-16 index mapping (JS interop: facets use UTF-16 units)
-- [ ] Detectors: mentions (`@handle`), URLs, tags (`#tag`), emojis
-- [ ] `TextBuilder` with entity insertion; facet validation/munging
+### M10 — RichText (`packages/api/src/rich-text`) — ✅ DONE
+- [x] UnicodeString: byte-length indexing (native UTF-8 in Julia), grapheme
+      counting via stdlib Unicode.graphemes, byte-level slicing
+- [x] detect_facets: mentions (@handle with IANA TLD validation),
+      links (https:// + bare domains with https:// prefixing, trailing
+      punctuation/unbalanced-paren stripping), tags (#tag with emoji-aware
+      grapheme limits), cashtags ($TICK with 5-char cap)
+- [x] RichText: insert/delete with all six facet-adjustment scenarios from
+      the reference, segment iteration, newline sanitization
+- [x] detect_facets with agent: mention handle→DID resolution via the
+      generated com.atproto.identity.resolveHandle
+- [x] RichTextSegment: link/mention/tag feature accessors
 
 ### M11 — OAuth (`packages/oauth`)
 - [ ] Client metadata, dynamic client registration (PAR)
