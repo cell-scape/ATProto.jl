@@ -8,7 +8,6 @@ using HTTP
 export HandleNotFoundError,
     IdentityMismatchError,
     HandleResolver,
-    resolve_handle,
     ensure_handle,
     resolve_handle_dns,
     resolve_handle_http,

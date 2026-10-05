@@ -22,10 +22,10 @@ end
         resolve_dns = h -> h == "alice.example.com" ? PLC_DID : nothing,
         fetch = make_fetch(),  # everything 404s
     )
-    @test resolve_handle(r, "alice.example.com") == PLC_DID
-    @test resolve_handle(r, "unknown.example.com") === nothing
-    @test_throws HandleNotFoundError ensure_handle(r, "unknown.example.com")
-    @test ensure_handle(r, "alice.example.com") == PLC_DID
+    @test Identity.resolve_handle(r, "alice.example.com") == PLC_DID
+    @test Identity.resolve_handle(r, "unknown.example.com") === nothing
+    @test_throws HandleNotFoundError Identity.ensure_handle(r, "unknown.example.com")
+    @test Identity.ensure_handle(r, "alice.example.com") == PLC_DID
 end
 
 @testset "HandleResolver via well-known HTTP" begin
@@ -36,7 +36,7 @@ end
             (200, "$PLC_DID\n"),
         ),
     )
-    @test resolve_handle(r, "bob.example.com") == PLC_DID
+    @test Identity.resolve_handle(r, "bob.example.com") == PLC_DID
     # multi-line body: first line wins
     r2 = HandleResolver(;
         resolve_dns = _ -> nothing,
@@ -45,7 +45,7 @@ end
             (200, "  $PLC_DID  \nsome trailing text\n"),
         ),
     )
-    @test resolve_handle(r2, "carol.example.com") == PLC_DID
+    @test Identity.resolve_handle(r2, "carol.example.com") == PLC_DID
     # non-did body -> nothing
     r3 = HandleResolver(;
         resolve_dns = _ -> nothing,
@@ -54,9 +54,9 @@ end
             (200, "not a did\n"),
         ),
     )
-    @test resolve_handle(r3, "dave.example.com") === nothing
+    @test Identity.resolve_handle(r3, "dave.example.com") === nothing
     # 404 -> nothing
-    @test resolve_handle(r3, "missing.example.com") === nothing
+    @test Identity.resolve_handle(r3, "missing.example.com") === nothing
 end
 
 @testset "HandleResolver precedence and fallback" begin
@@ -70,7 +70,7 @@ end
         resolve_dns = _ -> PLC_DID,
         fetch,
     )
-    @test resolve_handle(r, "any.example.com") == PLC_DID
+    @test Identity.resolve_handle(r, "any.example.com") == PLC_DID
     @test http_calls[] == 0  # DNS result short-circuits
 
     # backup nameservers are used when DNS + HTTP both miss: verify the
@@ -89,7 +89,7 @@ end
     # (resolve_handle falls back to resolve_handle_dns with backup servers;
     #  in the offline test environment this hits the real resolver, so we
     #  only check the code path doesn't throw and accepts nothing)
-    result = resolve_handle(r2, "fallback.example.com")
+    result = Identity.resolve_handle(r2, "fallback.example.com")
     @test result === nothing || result isa String
 end
 

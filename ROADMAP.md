@@ -146,11 +146,24 @@ Identifiers and primitives, zero non-stdlib dependencies:
       counts, codec/CID/DAG-CBOR round trips
 - [ ] applyWrites endpoint semantics — lands with M9's agent
 
-### M9 — API client (`packages/api`, `atproto-py` client)
-- [ ] Generated namespaces from lexicon docs (codegen script, typed structs)
-- [ ] `com.atproto.*` + `app.bsky.*` coverage
-- [ ] `Agent`/`SessionAgent` with login, auth refresh, proxy headers
-- [ ] `uploadBlob`, pagination helpers (`cursor`), `describeGenerator` conveniences
+### M9 — API client (`packages/api`, `atproto-py` client) — ✅ DONE
+- [x] Codegen (tools/generate_api.jl) from the official 407-doc lexicon
+      corpus: 325 XRPC methods (179 queries, 143 procedures, 3 subscriptions)
+      in nested namespace modules (com.atproto.*, app.bsky.*, chat.bsky.*,
+      tools.ozone.*), snake_case names with keyword-arg params, docstrings
+      from lexicon descriptions; keyword-collision + Julia-keyword handling
+- [x] Embedded OFFICIAL_LEXICONS collection (add_lexicon! validated at
+      precompile) powering runtime param/input/output validation +
+      param-type-driven URL encoding for every generated call
+- [x] Agent (unauthenticated) + SessionAgent (login via createSession with
+      auto-refresh); login/get_session helpers; did_of/handle_of/session_of
+- [x] Record conveniences: create_record/put_record/get_record/delete_record,
+      upload_blob (BlobRef return), create_post/delete_post (bsky sugar
+      with TID rkeys + fresh createdAt)
+- [x] Blob refs auto-converted from JSON during output parsing (_blobify),
+      validated by lexicon, returned as BlobRef objects
+- [ ] Pagination cursor helpers — deferred (thin: pass cursor= kwarg)
+- [ ] Proxy headers (atproto-protocol) — deferred to OAuth milestone
 
 ### M10 — RichText (`packages/api` richtext, `atproto-py` rich_text)
 - [ ] UTF-8 ↔ UTF-16 index mapping (JS interop: facets use UTF-16 units)

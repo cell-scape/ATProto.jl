@@ -166,11 +166,13 @@ function xrpc_call(client::XRPCClient, nsid::AbstractString;
         if data isa AbstractVector{UInt8}
             body = data
         elseif startswith(String(encoding), "text/")
-            body = String(data)
+            body = string(data)
         elseif occursin("application/json", String(encoding))
             body = serialize_lex(data)
+        elseif data isa AbstractDict
+            body = serialize_lex(data)
         else
-            body = data isa Dict ? serialize_lex(data) : String(data)
+            body = string(data)
         end
     elseif encoding !== nothing
         throw(XRPCError(400, nothing, "A request body is expected but none was provided"))

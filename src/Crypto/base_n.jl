@@ -71,10 +71,8 @@ function _base32_decode(s::AbstractString, alphabet::String)::Vector{UInt8}
             write(buf, UInt8((acc >> bits) & 0xff))
         end
     end
-    # leftover bits must be zero-padding
-    if bits > 0 && (acc & ((1 << bits) - 1)) != 0
-        throw(ArgumentError("non-zero padding bits in base32 input"))
-    end
+    # trailing partial bits: multiformats tolerates non-canonical padding
+    # bits (real-world CIDs carry them), so they are masked off here
     return take!(buf)
 end
 

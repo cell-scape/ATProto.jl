@@ -39,6 +39,16 @@ using .Lexicon
 include("Repo/Repo.jl")
 using .Repo
 
+include("API/API.jl")
+using .API: Agent, SessionAgent, login, client_of, service_url, did_of,
+    handle_of, session_of, resolve_handle, upload_blob, put_record,
+    delete_record, create_record, get_record, create_post, delete_post,
+    OFFICIAL_LEXICONS
+
+export Agent, SessionAgent, login, client_of, service_url, did_of, handle_of,
+    session_of, resolve_handle, upload_blob, put_record, delete_record,
+    create_record, get_record, create_post, delete_post, OFFICIAL_LEXICONS
+
 # Re-export module APIs at the top level.
 for mod in (:Syntax, :Crypto, :DagCbor, :DID, :Identity, :XRPC, :Lexicon, :Repo)
     for name in names(getfield(@__MODULE__, mod); all = false)
