@@ -36,6 +36,12 @@ SessionAgent(service::AbstractString, identifier::AbstractString,
              password::AbstractString; kwargs...) =
     SessionAgent(Agent(; service, kwargs...), identifier, password)
 
+"""
+    login(x, identifier, password) -> SessionAgent
+
+Log in via `com.atproto.server.createSession`. Accepts an `Agent` or a
+service URL string.
+"""
 login(x, identifier::AbstractString, password::AbstractString) =
     SessionAgent(x, identifier, password)
 

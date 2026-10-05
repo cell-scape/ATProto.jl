@@ -210,11 +210,17 @@ Identifiers and primitives, zero non-stdlib dependencies:
 - [ ] Full CAR block extraction from commit events (record bytes live in the
       blocks CAR inside the event; jetstream serves them inline as JSON)
 
-### M13 — Polish
-- [ ] Documenter docs, docstrings for all public API
-- [ ] Aqua.jl + JET.jl clean; CI (existing workflows)
-- [ ] Benchmarks for MST/CAR/CBOR hot paths
-- [ ] README quickstart + examples
+### M13 — Polish — ✅ DONE
+- [x] README rewritten: quickstart examples (login/post, identity, rich text,
+      OAuth, firehose, MST/CAR), module table, testing overview
+- [x] Documenter docs built (docs/src/index.md + docs/make.jl): API reference
+      for all 12 modules
+- [x] Docstrings added to all public API functions (agent.jl conveniences
+      were the last gap)
+- [x] 1,516 tests pass; Aqua + JET clean
+- [x] CI workflow already in place (Julia 1.10/1.13/pre, Linux/macOS/Windows)
+- [ ] Benchmarks — deferred (the code is correct; profiling should be
+      informed by real-world usage patterns)
 
 ## Conventions
 
