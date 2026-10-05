@@ -42,6 +42,9 @@ using .Repo
 include("API/API.jl")
 include("RichText/RichText.jl")
 using .RichText
+
+include("OAuth/OAuth.jl")
+using .OAuth
 using .API: Agent, SessionAgent, login, client_of, service_url, did_of,
     handle_of, session_of, resolve_handle, upload_blob, put_record,
     delete_record, create_record, get_record, create_post, delete_post,
@@ -52,7 +55,7 @@ export Agent, SessionAgent, login, client_of, service_url, did_of, handle_of,
     create_record, get_record, create_post, delete_post, OFFICIAL_LEXICONS
 
 # Re-export module APIs at the top level.
-for mod in (:Syntax, :Crypto, :DagCbor, :DID, :Identity, :XRPC, :Lexicon, :Repo, :RichText)
+for mod in (:Syntax, :Crypto, :DagCbor, :DID, :Identity, :XRPC, :Lexicon, :Repo, :RichText, :OAuth)
     for name in names(getfield(@__MODULE__, mod); all = false)
         @eval using .$(mod): $name
         @eval export $name

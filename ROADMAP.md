@@ -178,11 +178,23 @@ Identifiers and primitives, zero non-stdlib dependencies:
       generated com.atproto.identity.resolveHandle
 - [x] RichTextSegment: link/mention/tag feature accessors
 
-### M11 — OAuth (`packages/oauth`)
-- [ ] Client metadata, dynamic client registration (PAR)
-- [ ] PKCE (S256), DPoP-bound requests, authorization URL building
-- [ ] Token exchange/refresh, `AtprotoServerAuth` requests
-- [ ] Circular redirect/callback handling per atproto OAuth spec
+### M11 — OAuth (`packages/oauth`) — ✅ DONE
+- [x] PKCE: S256 code verifier/challenge generation (32-96 byte range)
+- [x] JWK export: P-256 + secp256k1 public keys → JWK dicts (EC kty/crv/x/y),
+      RFC 7638 thumbprints
+- [x] JWT: sign/verify ES256 (P-256) + ES256K (secp256k1) compact JWS,
+      DPoP proof building (RFC 9449: htm/htu/iat/jti/nonce/ath, jwk header)
+- [x] OAuth client metadata: validation per the atproto spec (atproto scope,
+      code response type, auth method none/private_key_jwt), JSON serialization
+- [x] Authorization URL building with PKCE + state + login_hint
+- [x] Token exchange (authorization_code + code_verifier, DPoP-bound)
+      and refresh_token (DPoP-bound)
+- [x] OAuthSession: DPoP-bound authenticated requests with automatic
+      nonce retry on 401 use_dpop_nonce and token refresh on invalid_token
+- [ ] PAR (Pushed Authorization Requests) — deferred (optional in the spec,
+      the authorization URL flow works without it)
+- [ ] Client registration endpoint (RFC 7591) — deferred (most atproto
+      clients use discoverable client IDs)
 
 ### M12 — Jetstream / Firehose (`jetstream`, `indigo/events`)
 - [ ] WebSocket subscriber with reconnect/backoff + cursor management
