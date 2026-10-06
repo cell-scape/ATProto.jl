@@ -193,15 +193,6 @@ julia --project=. -e 'using Pkg; Pkg.test()'
 - Julia ≥ 1.10
 - OpenSSL (for ECDSA; provided by `OpenSSL_jll`)
 
-## References
-
-- [AT Protocol specification](https://atproto.com)
-- [TypeScript implementation](https://github.com/bluesky-social/atproto) — most authoritative
-- [Go implementation](https://github.com/bluesky-network/indigo)
-- [Community implementations](https://atproto.com/guides/overview) — Python, Elixir, Rust, Zig, etc.
-
-Reference implementations are checked out in `docs/reference/` for development.
-
 ## License
 
 MIT
