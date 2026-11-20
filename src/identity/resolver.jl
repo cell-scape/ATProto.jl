@@ -20,13 +20,14 @@ function _default_id_http(
     headers::Vector{Pair{String, String}};
     timeout::Real = 10.0,
 )
+    t = Float64(timeout)
     return HTTP.request(
         "GET",
         url,
         headers;
         status_exception = false,
-        readtimeout = Int(ceil(timeout)),
-        connect_timeout = Int(ceil(timeout)),
+        read_idle_timeout = t,
+        connect_timeout = t,
     )
 end
 

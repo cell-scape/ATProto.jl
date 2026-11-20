@@ -22,14 +22,15 @@ function _default_transport(
     timeout::Real = 30.0,
 )
     req_body = isnothing(body) ? UInt8[] : body
+    t = Float64(timeout)
     return HTTP.request(
         method,
         url,
         headers,
         req_body;
         status_exception = false,
-        readtimeout = Int(ceil(timeout)),
-        connect_timeout = Int(ceil(timeout)),
+        read_idle_timeout = t,
+        connect_timeout = t,
     )
 end
 
