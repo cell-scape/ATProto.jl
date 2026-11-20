@@ -3,11 +3,11 @@
 const INVALID_HANDLE = "handle.invalid"
 
 """
-DISALLOWED_TLDS::Vector{String}
+    DISALLOWED_TLDS
 
-A list of reserved TLDs that are disallowed in handles at registration time.
+Tuple of reserved TLDs that are disallowed in handles at registration time.
 """
-const DISALLOWED_TLDS = [
+const DISALLOWED_TLDS = (
     ".local",
     ".arpa",
     ".invalid",
@@ -16,294 +16,237 @@ const DISALLOWED_TLDS = [
     ".example",
     ".alt",
     ".onion",
-]
+)
 
 """
-VALID_HANDLE_RX::Regex
+    VALID_HANDLE_RX
 
-A regular expression that will match a valid handle.
+Regular expression matching a valid AT Protocol handle (excluding the 253-byte length bound).
+"""
+const VALID_HANDLE_RX = r"^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\z"
 
 """
-const VALID_HANDLE_RX = r"^([a-zA-Z0-9]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
+    HANDLE_CHARS_RX
+
+Regular expression matching strings composed solely of valid handle ASCII characters.
+"""
+const HANDLE_CHARS_RX = r"^[a-zA-Z0-9.-]*\z"
 
 """
-HANDLE_CHARS_RX::Regex
+    valid_handle_char(c::AbstractChar) -> Bool
 
-A regular expression that will match characters in a valid handle.
-"""
-const HANDLE_CHARS_RX = r"^[a-zA-Z0-9.-]*$"
-
-"""
-valid_handle_char(c::Char)::Bool
-
-Validate a character in a handle. Only ASCII letters, digits, period, and hyphens are allowed.
-
-# Arguments
-- `c::Char`: A character from a handle string
-
-# Returns
-- `::Bool`: Returns true when a character is valid
+Validate a single character in a handle. Only ASCII letters, digits, periods,
+and hyphens are allowed.
 
 # Examples
-```julia-repl
-julia> valid_handle_char('a')
+```jldoctest
+julia> ATProto.Syntax.valid_handle_char('a')
 true
-julia> valid_handle_char('#')
+
+julia> ATProto.Syntax.valid_handle_char('#')
 false
-julia> all(valid_handle_char, "example.com")
-true
-```
-"""
-valid_handle_char(c::Char)::Bool = isletter(c) || isdigit(c) || c in ('.', '-')
 
-"""
-valid_handle_chars(handle::String)::Bool
-
-Validate characters in a handle string
-
-# Arguments
-- `handle::String`: Handle string
-
-# Returns
-- `::Bool`: Returns true if handle matches HANDLE_CHARS_RX
-
-# Examples
-```julia-repl
-julia> valid_handle_chars("example.com")
-true
-julia> valid_handle_chars("no-tld")
+julia> ATProto.Syntax.valid_handle_char('α')
 false
 ```
 """
-valid_handle_chars(handle; pattern=HANDLE_CHARS_RX)::Bool = !isnothing(match(pattern, handle))
+valid_handle_char(c::AbstractChar) = _is_ascii_alnum(c) || c == '.' || c == '-'
 
 """
-ensure_valid_handle(handle::String)::Bool
+    valid_handle_chars(handle::AbstractString; pattern=HANDLE_CHARS_RX) -> Bool
 
-Ensure that a handle is valid. 
-
-Handle constraints, in English:
-- Must be a possible domain name
-    - RFC-1035, RFC-3696, RFC-3986
-    - "labels" (sub-names) are made of ASCII letters, digits, and hyphens
-    - can not start or end with a hyphen
-    - TLD (last component) should not start with a digit
-    - can not end with a hyphen (can end with a digit)
-    - each segment must be between 1 and 63 characters (not including any periods)
-    - overall length can not be more than 253 characters
-    - separated by (ASCII) periods; does not start or end with a period
-    - case insensitive
-    - domains (handles) are equal if they are the same lower-case
-    - punycode allowed for internationalization
-- no whitespace, null bytes, joining chars, etc
-- does not validate whether domain or TLD exists, or is a reserved or special TLD (eg, .onion or .local)
-- does not validate punycode
-
-# Arguments
-- `handle::String`: Handle string to test for validity
-
-# Returns
-- `::Bool`: Returns false on first failed constraint, true otherwise
-
-# Examples
-```julia-repl
-julia> ensure_valid_handle("handle.invalid")
-true
-julia> ensure_valid_handle("no-tld")
-false
-```
+Return `true` if `handle` contains only characters permitted in an AT Protocol handle.
 """
-function is_valid_handle(handle)::Bool
-    !all(valid_handle_char, handle) && return false
+valid_handle_chars(handle::AbstractString; pattern::Regex=HANDLE_CHARS_RX) =
+    occursin(pattern, handle)
 
-    length(handle) > 253 && return false
-    
-    labels = split(handle, '.')
-    length(labels) < 2 && return false
+function _validate_handle_bytes(cu, start::Int, stop::Int)
+    n = stop - start + 1
+    n <= 0 && return "Handle cannot be empty"
+    n > 253 && return "Handle is too long (253 chars max)"
 
-    !isletter(first(last(labels))) && return false
+    label_count = 1
+    label_start = start
 
-    for label in labels
-        isempty(label) && return false
-        length(label) > 63 && return false
-        (startswith(label, '-') || endswith(label, '-')) && return false
+    @inbounds for i in start:stop
+        b = cu[i]
+        if b == UInt8('.')
+            label_len = i - label_start
+            label_len == 0 && return "Handle parts cannot be empty"
+            label_len > 63 && return "Handle part too long (max 63 chars)"
+            (cu[label_start] == UInt8('-') || cu[i - 1] == UInt8('-')) &&
+                return "Handle parts cannot start or end with hyphens"
+            label_count += 1
+            label_start = i + 1
+        elseif !(_is_ascii_alnum(b) || b == UInt8('-'))
+            return "Disallowed characters in handle (ASCII letters, digits, dashes, periods only)"
+        end
     end
 
-    return true
-end
+    tld_len = stop - label_start + 1
+    tld_len == 0 && return "Handle parts cannot be empty"
+    tld_len > 63 && return "Handle part too long (max 63 chars)"
+    label_count < 2 && return "Handle domain needs at least two parts"
 
-"""
-ensure_valid_handle(handle::String)::Nothing
-
-Ensure that a handle is valid. 
-
-Handle constraints, in English:
-- Must be a possible domain name
-    - RFC-1035, RFC-3696, RFC-3986
-    - "labels" (sub-names) are made of ASCII letters, digits, and hyphens
-    - can not start or end with a hyphen
-    - TLD (last component) should not start with a digit
-    - can not end with a hyphen (can end with a digit)
-    - each segment must be between 1 and 63 characters (not including any periods)
-    - overall length can not be more than 253 characters
-    - separated by (ASCII) periods; does not start or end with a period
-    - case insensitive
-    - domains (handles) are equal if they are the same lower-case
-    - punycode allowed for internationalization
-- no whitespace, null bytes, joining chars, etc
-- does not validate if domain or TLD exists, or is a reserved or special TLD (eg, .onion or .local)
-- does not validate punycode
-
-# Arguments
-- `handle::String`: Handle string to test for validity
-
-# Returns
-- `::Nothing`: Returns nothing on success, throws otherwise
-
-# Examples
-```julia-repl
-julia> ensure_valid_handle("example.com")
-
-julia> ensure_valid_handle("no-tld")
-ERROR: ...
-```
-"""
-function ensure_valid_handle(handle)::Nothing
-    !all(valid_handle_char, handle) && error("Disallowed characters in handle (ASCII letters, digits, dashes, periods only)")
-    
-    length(handle) > 253 && error("Handle is too long (253 chars max)")
-    
-    labels = split(handle, '.')
-    length(labels) < 2 && error("Handle domain needs at least two parts" )
-
-    !isletter(first(last(labels))) && error("Handle final component (TLD) must start with an ASCII letter" )
-
-    for label in labels
-        isempty(label) && error("Handle parts cannot be empty")
-        length(label) > 63 && error("Handle part too long (max 63 chars)")        
-        (startswith(label, '-') || endswith(label, '-')) && error("Handle parts cannot start or end with hyphens")
+    @inbounds begin
+        _is_ascii_alpha(cu[label_start]) ||
+            return "Handle final component (TLD) must start with an ASCII letter"
+        (cu[label_start] == UInt8('-') || cu[stop] == UInt8('-')) &&
+            return "Handle parts cannot start or end with hyphens"
     end
 
     return nothing
 end
 
+_validate_handle(handle::Union{String, SubString{String}}) =
+    _validate_handle_bytes(codeunits(handle), 1, ncodeunits(handle))
+
+_validate_handle(handle::AbstractString) = _validate_handle(String(handle))
 
 """
-is_valid_handle_regex(handle::String; pattern::Regex)::Bool
+    is_valid_handle(handle::AbstractString) -> Bool
 
-Validate a handle by matching against a regular expression.
+Return `true` if `handle` satisfies the AT Protocol handle syntax specification.
 
-# Arguments
-- `handle::String`: Handle string to validate
+Constraints:
+- ASCII letters, digits, hyphens, and periods only (`[a-zA-Z0-9.-]`)
+- Overall length at most 253 bytes
+- At least two dot-separated labels, each 1–63 characters
+- Labels cannot start or end with a hyphen (`-`)
+- Final label (TLD) must start with an ASCII letter
 
-# Returns
-- `::Bool`: False if validation fails
+Does not validate DNS existence or reject reserved TLDs (see [`is_valid_tld`](@ref)).
 
 # Examples
-```julia-repl
-julia> is_valid_handle_regex("example.com")
+```jldoctest
+julia> ATProto.Syntax.is_valid_handle("bsky.app")
 true
-julia> is_valid_handle_regex("no-tld")
+
+julia> ATProto.Syntax.is_valid_handle("handle.invalid")
+true
+
+julia> ATProto.Syntax.is_valid_handle("no-tld")
 false
 ```
 """
-function is_valid_handle_regex(handle; pattern=VALID_HANDLE_RX)::Bool
-    isnothing(match(pattern, handle)) && return false
-    length(handle) > 253 && return false
-
-    return true
-end
-
+is_valid_handle(handle::AbstractString) = isnothing(_validate_handle(handle))
 
 """
-ensure_valid_handle_regex(handle::String; pattern::Regex)::Nothing
+    ensure_valid_handle(handle::AbstractString) -> Nothing
 
-Validate a handle by matching against a regular expression.
-
-# Arguments
-- `handle::String`: Handle string to validate
-
-# Returns
-- `::Nothing`: throws ErrorException if handle is invalid, nothing otherwise
-
-# Examples
-```julia-repl
-julia> ensure_valid_handle_regex("example.com")
-
-julia> ensure_valid_handle_regex("no-tld")
-ERROR: ...
-```
+Validate `handle` against the AT Protocol handle syntax specification, throwing
+a [`SyntaxError`](@ref) if invalid.
 """
-function ensure_valid_handle_regex(handle; pattern=VALID_HANDLE_RX)::Nothing
-    isnothing(match(pattern, handle)) && error("Handle didn't validate via regex")
-    length(handle) > 253 && error("Handle is too long (253 chars max)")
-
+function ensure_valid_handle(handle::AbstractString)
+    err = _validate_handle(handle)
+    isnothing(err) || throw(SyntaxError(:handle, String(handle), err))
     return nothing
 end
 
+"""
+    is_valid_handle_regex(handle::AbstractString; pattern=VALID_HANDLE_RX) -> Bool
+
+Validate a handle by matching against `pattern` and enforcing the 253-byte limit.
+"""
+function is_valid_handle_regex(handle::AbstractString; pattern::Regex=VALID_HANDLE_RX)
+    ncodeunits(handle) > 253 && return false
+    return occursin(pattern, handle)
+end
 
 """
-normalize_handle(handle::String)::String
+    ensure_valid_handle_regex(handle::AbstractString; pattern=VALID_HANDLE_RX) -> Nothing
 
-Cast handle to lowercase. Handles are case insensitive.
-
-# Arguments
-- `handle::String`: Handle string
-
-# Returns
-- `::String`: lowercase handle string
-
-# Examples
-```julia-repl
-julia> normalize_handle("example.com")
-"example.com"
-julia> normalize_handle("Example.com")
-"example.com"
-```
+Validate a handle against `pattern` and the 253-byte limit, throwing [`SyntaxError`](@ref)
+on failure.
 """
-normalize_handle(handle) = lowercase(handle)
+function ensure_valid_handle_regex(handle::AbstractString; pattern::Regex=VALID_HANDLE_RX)
+    ncodeunits(handle) > 253 && throw(SyntaxError(:handle, String(handle), "Handle is too long (253 chars max)"))
+    occursin(pattern, handle) || throw(SyntaxError(:handle, String(handle), "Handle didn't validate via regex"))
+    return nothing
+end
 
 """
-normalize_and_ensure_valid_handle(handle::String)::Bool
+    normalize_handle(handle::AbstractString) -> String
 
-Normalize handle string and validate.
-
-# Arguments
-- `handle::String`: Handle string
-
-# Returns
-- `::Bool`: Returns true if handle is valid
-
-# Examples
-```julia-repl
-julia> normalize_and_ensure_valid_handle("Example.com")
-true
-julia> normalize_and_ensure_valid_handle("no-tld")
-false
-```
+Normalize `handle` to lowercase ASCII. Handles are case-insensitive.
 """
-function normalize_and_ensure_valid_handle(handle)::Nothing
+normalize_handle(handle::AbstractString) = lowercase(String(handle))
+
+"""
+    normalize_and_ensure_valid_handle(handle::AbstractString) -> String
+
+Normalize `handle` to lowercase, validate it (throwing [`SyntaxError`](@ref) if invalid),
+and return the normalized handle string.
+"""
+function normalize_and_ensure_valid_handle(handle::AbstractString)
     normalized = normalize_handle(handle)
-    return ensure_valid_handle(normalized)
+    ensure_valid_handle(normalized)
+    return normalized
 end
 
 """
-is_valid_tld(handle::String)::Bool
+    is_valid_tld(handle::AbstractString) -> Bool
 
-Test TLD against disallowed list
-
-# Arguments
-- `handle::String`: Handle string
-
-# Returns
-- `::Bool`: Returns true if TLD is not in disallowed list
+Return `true` if `handle` does not end with a disallowed/reserved TLD
+(case-insensitive).
 
 # Examples
-```julia-repl
-julia> is_valid_tld("example.com")
+```jldoctest
+julia> ATProto.Syntax.is_valid_tld("example.com")
 true
-julia> is_valid_tld("handle.invalid")
+
+julia> ATProto.Syntax.is_valid_tld("handle.invalid")
+false
+
+julia> ATProto.Syntax.is_valid_tld("EXAMPLE.LOCAL")
 false
 ```
 """
-is_valid_tld(handle)::Bool = !any(endswith(handle), DISALLOWED_TLDS)
+function is_valid_tld(handle::AbstractString)
+    lower = lowercase(handle)
+    return !any(tld -> endswith(lower, tld), DISALLOWED_TLDS)
+end
+
+"""
+    Handle(s::AbstractString)
+
+Validated, lowercase-normalized AT Protocol handle.
+
+Can also be constructed with `parse(Handle, s)`, `tryparse(Handle, s)`, or the
+compile-time string macro `handle"bsky.app"`.
+"""
+struct Handle
+    value::String
+    Handle(::_Unchecked, value::String) = new(value)
+    function Handle(s::AbstractString)
+        ensure_valid_handle(s)
+        return new(lowercase(String(s)))
+    end
+end
+
+function Base.tryparse(::Type{Handle}, s::AbstractString)
+    is_valid_handle(s) || return nothing
+    return Handle(_Unchecked(), lowercase(String(s)))
+end
+
+Base.parse(::Type{Handle}, s::AbstractString) = Handle(s)
+Base.convert(::Type{Handle}, s::AbstractString) = Handle(s)
+Base.convert(::Type{Handle}, h::Handle) = h
+Base.convert(::Type{String}, h::Handle) = h.value
+Base.String(h::Handle) = h.value
+Base.print(io::IO, h::Handle) = print(io, h.value)
+Base.show(io::IO, h::Handle) = print(io, "Handle(", repr(h.value), ")")
+Base.isless(a::Handle, b::Handle) = isless(a.value, b.value)
+
+StructUtils.structlike(::Type{Handle}) = false
+StructUtils.lower(h::Handle) = h.value
+StructUtils.lift(::Type{Handle}, x::AbstractString) = Handle(x)
+
+"""
+    @handle_str -> Handle
+
+Compile-time validated AT Protocol handle literal, e.g. `handle"bsky.app"`.
+"""
+macro handle_str(s::String)
+    return Handle(s)
+end
