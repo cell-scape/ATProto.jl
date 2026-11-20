@@ -1,0 +1,84 @@
+name: Benchmarks
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    # Weekly benchmark run every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
+jobs:
+  benchmark:
+    name: PkgBenchmark & Chairmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+
+      - uses: julia-actions/cache@v2
+
+      - name: Instantiate benchmark environment
+        run: |
+          julia --project=benchmark -e 'using Pkg; Pkg.instantiate()'
+
+      - name: Run Chairmarks quick table
+        run: |
+          {
+            echo "## Chairmarks Summary"
+            echo ""
+            julia --project=benchmark benchmark/chairmarks.jl
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run CPU, Allocation & Invalidation Profiling
+        run: |
+          {
+            echo "## Profiling Summary (PProf + TimerOutputs + SnoopCompile)"
+            echo ""
+            julia --project=benchmark benchmark/profile.jl benchmark/out
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload PProf profiles
+        uses: actions/upload-artifact@v4
+        with:
+          name: pprof-profiles
+          path: benchmark/out/*.pb.gz
+          retention-days: 14
+
+      - name: Run PkgBenchmark (judge on PRs, snapshot on push/schedule)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          julia --project=benchmark -e '
+            using PkgBenchmark
+            pkg = pwd()
+            md = if get(ENV, "EVENT_NAME", "") == "pull_request" && !isempty(get(ENV, "BASE_REF", ""))
+                base = "origin/" * ENV["BASE_REF"]
+                judgement = judge(pkg, base; retune=true)
+                export_markdown(judgement)
+            else
+                results = benchmarkpkg(pkg; retune=true)
+                export_markdown(results)
+            end
+            open(ENV["GITHUB_STEP_SUMMARY"], "a") do io
+                println(io, "## PkgBenchmark Report\n")
+                println(io, md)
+            end
+          '
