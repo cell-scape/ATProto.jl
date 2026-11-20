@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - dev
     tags: ['*']
   pull_request:
   workflow_dispatch:
@@ -17,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -25,6 +26,9 @@ jobs:
           version: '1'
       - uses: julia-actions/cache@v2
       - name: Build documentation & run doctests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
         run: |
           julia --project=docs -e '
             using Pkg

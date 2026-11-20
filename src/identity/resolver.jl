@@ -145,6 +145,9 @@ end
 
 did_web_url(s::AbstractString) = did_web_url(DID(s))
 
+_id_body_string(body::AbstractString) = String(body)
+_id_body_string(body::AbstractVector{UInt8}) = String(copy(body))
+
 function _fetch_did_document(resolver::IdentityResolver, d::DID)
     m = did_method(d)
     url = if m == "plc"
@@ -159,7 +162,7 @@ function _fetch_did_document(resolver::IdentityResolver, d::DID)
     if !(200 <= resp.status < 300)
         throw(IdentityError(String(d), "HTTP $(resp.status) resolving DID document from $url"))
     end
-    doc = parse_did_document(String(copy(resp.body)))
+    doc = parse_did_document(_id_body_string(resp.body))
     if doc.id != d
         throw(IdentityError(String(d), "DID document id mismatch: expected $(d), got $(doc.id)"))
     end
@@ -227,7 +230,7 @@ function _query_doh_txt(resolver::IdentityResolver, domain::String)
     resp = resolver.http_transport(url, ["Accept" => "application/dns-json"]; timeout = resolver.timeout)
     (200 <= resp.status < 300) || return String[]
 
-    body = String(copy(resp.body))
+    body = _id_body_string(resp.body)
     parsed = try
         JSON.parse(body, Dict{String, Any})
     catch
@@ -266,7 +269,7 @@ function _resolve_handle_https(resolver::IdentityResolver, h::Handle)
         return nothing
     end
     (200 <= resp.status < 300) || return nothing
-    body = strip(String(copy(resp.body)))
+    body = strip(_id_body_string(resp.body))
     isempty(body) && return nothing
     # ATProto well-known response must be a single DID (first line, no extra junk)
     first_line = strip(first(split(body, '\n')))

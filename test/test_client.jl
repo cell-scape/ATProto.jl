@@ -4,9 +4,8 @@ using ATProto.Client
 using ATProto.Syntax
 using HTTP
 using JSON
+using Sockets
 using Test
-
-const Sockets = HTTP.Sockets
 
 function _hdr(headers, name::AbstractString)
     lname = lowercase(name)
@@ -439,7 +438,7 @@ end
     end
 
     @testset "End-to-end real HTTP loopback server" begin
-        server = HTTP.serve!(Sockets.localhost, 0) do req::HTTP.Request
+        server = HTTP.serve!("127.0.0.1", 0) do req::HTTP.Request
             if req.method == "GET" && startswith(req.target, "/xrpc/app.bsky.actor.getProfile")
                 return HTTP.Response(
                     200,
@@ -463,7 +462,7 @@ end
         end
 
         try
-            _, port = Sockets.getsockname(server.listener.server)
+            port = server.bound_port
             agent = AtpAgent("http://127.0.0.1:$port")
             prof = get_profile(agent, "loopback.test")
             @test prof.handle == handle"loopback.test"
@@ -478,5 +477,241 @@ end
         finally
             close(server)
         end
+    end
+
+    @testset "Session file persistence (save_session / load_session / resume_session!)" begin
+        mktempdir() do tmpdir
+            spath = joinpath(tmpdir, "auth", "session.json")
+            orig = Session(
+                did = "did:plc:z72i7hdynmk6r22z27h6tvur",
+                handle = "alice.bsky.social",
+                access_jwt = "acc-secret-1",
+                refresh_jwt = "ref-secret-2",
+                email = "alice@example.com",
+                active = true,
+                did_doc = UnknownObject(Dict(
+                    "id" => "did:plc:z72i7hdynmk6r22z27h6tvur",
+                    "service" => [Dict("id" => "#atproto_pds", "type" => "AtprotoPersonalDataServer", "serviceEndpoint" => "https://pds.example")],
+                )),
+            )
+            save_session(spath, orig)
+            @test isfile(spath)
+            if Sys.isunix()
+                @test (filemode(spath) & 0o777) == 0o600
+            end
+            loaded = load_session(spath)
+            @test loaded.did == orig.did
+            @test loaded.handle == orig.handle
+            @test loaded.access_jwt == "acc-secret-1"
+            @test loaded.refresh_jwt == "ref-secret-2"
+            @test loaded.email == "alice@example.com"
+
+            agent = AtpAgent("https://bsky.social"; transport = (m, u, h, b; timeout) -> HTTP.Response(500))
+            resume_session!(agent, spath; verify = false)
+            @test is_authenticated(agent)
+            @test service_url(agent) == "https://pds.example"
+        end
+    end
+
+    @testset "Social actions, reply!/quote_post!, embeds, notifications, bookmarks & chat" begin
+        recorded = Tuple{String, String, Vector{Pair{String, String}}, Any}[]
+        fake_img = UInt8[0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]
+
+        transport = function (method, url, headers, body; timeout)
+            parsed_body = body isa AbstractString && !isempty(body) ? JSON.parse(body, Dict{String, Any}) : body
+            push!(recorded, (method, url, headers, parsed_body))
+
+            if occursin("com.atproto.repo.uploadBlob", url)
+                return _json_resp(200, Dict(
+                    "blob" => Dict(
+                        "\$type" => "blob",
+                        "ref" => Dict("\$link" => "bafkreiimg1"),
+                        "mimeType" => "image/jpeg",
+                        "size" => length(fake_img),
+                    ),
+                ))
+            elseif occursin("com.atproto.repo.createRecord", url)
+                col = parsed_body["collection"]
+                return _json_resp(200, Dict(
+                    "uri" => "at://did:plc:z72i7hdynmk6r22z27h6tvur/$col/3jui7kd54zh2y",
+                    "cid" => "bafyrei_created",
+                ))
+            elseif occursin("com.atproto.repo.deleteRecord", url)
+                return _json_resp(200, Dict())
+            elseif occursin("app.bsky.graph.muteActor", url) || occursin("app.bsky.graph.unmuteActor", url)
+                return HTTP.Response(200)
+            elseif occursin("app.bsky.notification.listNotifications", url)
+                return _json_resp(200, Dict(
+                    "notifications" => [Dict(
+                        "uri" => "at://did:plc:alice12345678901234567890/app.bsky.feed.like/3k1",
+                        "cid" => "bafylike1",
+                        "author" => Dict("did" => "did:plc:alice12345678901234567890", "handle" => "alice.bsky.social"),
+                        "reason" => "like",
+                        "record" => Dict("\$type" => "app.bsky.feed.like", "createdAt" => "2026-11-20T00:00:00Z",
+                                         "subject" => Dict("uri" => "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3k0", "cid" => "bafyp0")),
+                        "isRead" => false,
+                        "indexedAt" => "2026-11-20T00:00:01Z",
+                    )],
+                ))
+            elseif occursin("app.bsky.notification.getUnreadCount", url)
+                return _json_resp(200, Dict("count" => 7))
+            elseif occursin("app.bsky.notification.updateSeen", url)
+                return HTTP.Response(200)
+            elseif occursin("app.bsky.actor.getPreferences", url)
+                return _json_resp(200, Dict(
+                    "preferences" => [Dict(
+                        "\$type" => "app.bsky.actor.defs#savedFeedsPrefV2",
+                        "items" => [
+                            Dict("id" => "f1", "pinned" => true, "type" => "timeline", "value" => "following"),
+                            Dict("id" => "f2", "pinned" => true, "type" => "feed", "value" => "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot"),
+                        ],
+                    )],
+                ))
+            elseif occursin("app.bsky.bookmark.getBookmarks", url)
+                return _json_resp(200, Dict("bookmarks" => [Dict("subject" => Dict("uri" => "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3k0", "cid" => "bafyp0"))]))
+            elseif occursin("app.bsky.bookmark.createBookmark", url) || occursin("app.bsky.bookmark.deleteBookmark", url)
+                return HTTP.Response(200)
+            elseif occursin("chat.bsky.convo.listConvos", url)
+                return _json_resp(200, Dict(
+                    "convos" => [Dict(
+                        "id" => "convo-1",
+                        "rev" => "rev1",
+                        "muted" => false,
+                        "unreadCount" => 2,
+                        "members" => [Dict("did" => "did:plc:alice12345678901234567890", "handle" => "alice.bsky.social")],
+                    )],
+                ))
+            elseif occursin("chat.bsky.convo.getMessages", url)
+                return _json_resp(200, Dict(
+                    "messages" => [Dict(
+                        "\$type" => "chat.bsky.convo.defs#messageView",
+                        "id" => "msg-1",
+                        "rev" => "rev1",
+                        "text" => "Hey from DM!",
+                        "sender" => Dict("did" => "did:plc:alice12345678901234567890"),
+                        "sentAt" => "2026-11-20T00:00:01Z",
+                    )],
+                ))
+            elseif occursin("chat.bsky.convo.sendMessage", url)
+                return _json_resp(200, Dict(
+                    "\$type" => "chat.bsky.convo.defs#messageView",
+                    "id" => "msg-2",
+                    "rev" => "rev2",
+                    "text" => parsed_body["message"]["text"],
+                    "sender" => Dict("did" => "did:plc:z72i7hdynmk6r22z27h6tvur"),
+                    "sentAt" => "2026-11-20T00:00:02Z",
+                ))
+            elseif occursin("chat.bsky.convo.updateRead", url)
+                return _json_resp(200, Dict(
+                    "convo" => Dict(
+                        "id" => "convo-1",
+                        "rev" => "rev2",
+                        "muted" => false,
+                        "unreadCount" => 0,
+                        "members" => [Dict("did" => "did:plc:alice12345678901234567890", "handle" => "alice.bsky.social")],
+                    ),
+                ))
+            end
+            return HTTP.Response(404)
+        end
+
+        agent = AtpAgent("https://pds.example"; transport)
+        resume_session!(
+            agent,
+            Session(did = "did:plc:z72i7hdynmk6r22z27h6tvur", handle = "bsky.app", access_jwt = "acc", refresh_jwt = "ref");
+            verify = false,
+        )
+
+        # Sample PostView (already a reply to root_ref)
+        root_ref = API.ComAtprotoRepoStrongRef(
+            uri = at"at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3k0root",
+            cid = "bafyroot",
+        )
+        parent_post = API.AppBskyFeedDefsPostView(
+            uri = at"at://did:plc:alice12345678901234567890/app.bsky.feed.post/3k0parent",
+            cid = "bafyparent",
+            author = API.AppBskyActorDefsProfileViewBasic(
+                did = did"did:plc:alice12345678901234567890",
+                handle = handle"alice.bsky.social",
+            ),
+            record = API.AppBskyFeedPost(
+                text = "Parent reply",
+                createdAt = "2026-11-20T00:00:00Z",
+                reply = API.AppBskyFeedPostReplyRef(root = root_ref, parent = root_ref),
+            ),
+            indexedAt = "2026-11-20T00:00:01Z",
+        )
+
+        # Social actions
+        lk = like!(agent, parent_post)
+        @test occursin("app.bsky.feed.like", string(lk.uri))
+        unlike!(agent, lk.uri)
+
+        rp = repost!(agent, parent_post)
+        @test occursin("app.bsky.feed.repost", string(rp.uri))
+        unrepost!(agent, rp.uri)
+
+        fl = follow!(agent, did"did:plc:alice12345678901234567890")
+        @test occursin("app.bsky.graph.follow", string(fl.uri))
+        unfollow!(agent, fl.uri)
+
+        mute!(agent, "alice.bsky.social")
+        unmute!(agent, "alice.bsky.social")
+
+        bl = block!(agent, did"did:plc:alice12345678901234567890")
+        @test occursin("app.bsky.graph.block", string(bl.uri))
+        unblock!(agent, bl.uri)
+
+        # reply_ref preserves thread root!
+        rr = reply_ref(parent_post)
+        @test rr.root == root_ref
+        @test rr.parent.uri == parent_post.uri
+        reply!(agent, parent_post, richtext("Threaded reply #JuliaLang"); langs = ["en"])
+        @test recorded[end][4]["record"]["reply"]["root"]["cid"] == "bafyroot"
+        @test recorded[end][4]["record"]["reply"]["parent"]["cid"] == "bafyparent"
+
+        # Embeds & quote_post!
+        img_emb = image_embed(agent, [(fake_img, "image/jpeg", "Sunset photo", (1200, 800))])
+        @test img_emb isa API.AppBskyEmbedImages
+        @test length(img_emb.images) == 1
+        @test img_emb.images[1].aspectRatio.width == 1200
+        @test_throws ArgumentError image_embed(agent, [(fake_img, "image/jpeg", "a") for _ in 1:5])
+
+        ext_emb = external_embed("https://julialang.org"; title = "Julia", description = "Fast language")
+        @test ext_emb isa API.AppBskyEmbedExternal
+
+        quote_post!(agent, parent_post, richtext("Quoting with media!"); media = img_emb)
+        @test recorded[end][4]["record"]["embed"]["\$type"] == "app.bsky.embed.recordWithMedia"
+        quote_post!(agent, parent_post, "Simple quote")
+        @test recorded[end][4]["record"]["embed"]["\$type"] == "app.bsky.embed.record"
+
+        # Notifications
+        notifs = get_notifications(agent; limit = 10)
+        @test length(notifs.notifications) == 1
+        @test get_unread_count(agent) == 7
+        update_seen_notifications!(agent)
+
+        # Preferences & Saved Feeds
+        saved = get_saved_feeds(agent)
+        @test length(saved) == 2
+        @test saved[2].type == "feed"
+
+        # Bookmarks
+        bms = get_bookmarks(agent; limit = 10)
+        @test length(bms["bookmarks"]) == 1
+        create_bookmark!(agent, parent_post)
+        delete_bookmark!(agent, parent_post.uri)
+
+        # Chat DMs (auto-injects atproto-proxy header!)
+        convos = list_convos(agent; limit = 10)
+        @test length(convos.convos) == 1
+        @test _hdr(recorded[end][3], "atproto-proxy") == DEFAULT_CHAT_PROXY
+        msgs = get_convo_messages(agent, "convo-1")
+        @test length(msgs.messages) == 1
+        sent = send_chat_message!(agent, "convo-1", richtext("Hello DM #JuliaLang"))
+        @test sent.text == "Hello DM #JuliaLang"
+        @test _hdr(recorded[end][3], "atproto-proxy") == DEFAULT_CHAT_PROXY
+        rd = update_convo_read!(agent, "convo-1")
+        @test rd.convo.unreadCount == 0
     end
 end

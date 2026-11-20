@@ -3,9 +3,8 @@ using ATProto.Identity
 using ATProto.Syntax
 using HTTP
 using JSON
+using Sockets
 using Test
-
-const Sockets = HTTP.Sockets
 
 @testset "Identity Resolution (DID & Handle)" begin
     sample_did = did"did:plc:z72i7hdynmk6r22z27h6tvur"
@@ -174,7 +173,7 @@ const Sockets = HTTP.Sockets
     end
 
     @testset "Loopback HTTP did:plc & did:web resolution" begin
-        server = HTTP.serve!(Sockets.localhost, 0) do req::HTTP.Request
+        server = HTTP.serve!("127.0.0.1", 0) do req::HTTP.Request
             if req.target == "/$(sample_did)"
                 return HTTP.Response(200, ["Content-Type" => "application/json"]; body = JSON.json(sample_doc_dict))
             elseif req.target == "/.well-known/did.json"
@@ -189,7 +188,7 @@ const Sockets = HTTP.Sockets
         end
 
         try
-            _, port = Sockets.getsockname(server.listener.server)
+            port = server.bound_port
             resolver = IdentityResolver(plc_url = "http://127.0.0.1:$port")
             doc = resolve_did(resolver, sample_did)
             @test doc.id == sample_did

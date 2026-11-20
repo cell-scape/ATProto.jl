@@ -13,12 +13,18 @@ pagination, UTF-8 byte-offset RichText facets, and real-time Jetstream WebSocket
 
 | Module | Responsibility |
 |:-------|:---------------|
-| [Syntax Primitives](@ref) (`ATProto.Syntax`) | Strict ASCII validators, immutable value types (`Handle`, `DID`, `NSID`, `RecordKey`, `TID`, `ATDateTime`, `AtUri`), compile-time string macros |
+| [Syntax Primitives](@ref) (`ATProto.Syntax`) | Strict ASCII validators, immutable value types (`Handle`, `DID`, `NSID`, `RecordKey`, `TID`, `ATDateTime`, `AtUri`), BCP-47 language tags, compile-time string macros |
+| [Cryptography, CIDs & Multibase](@ref) (`ATProto.Crypto`) | Multibase/varint/multihash, CIDv0/v1, `did:key`, ECDSA (`ES256`/`ES256K`) via OpenSSL, secp256k1 key recovery |
+| [DAG-CBOR Codec](@ref) (`ATProto.DagCbor`) | Strict canonical IPLD DAG-CBOR encode/decode with CID tag 42 and `DagBytes` |
 | [Identity Resolution](@ref) (`ATProto.Identity`) | `did:plc` & `did:web` resolution, DNS TXT (DoH) & HTTPS handle resolution, bidirectional verification, TTL caching |
+| [PLC Directory & DID Verification](@ref) (`ATProto.PLC`) | `plc.directory` audit log client, DID document parsers, genesis/rotation op verification |
+| [Lexicon Schema Validation](@ref) (`ATProto.Lexicon`) | Runtime schema validator over the 237 bundled Lexicon JSON docs (`load_bundled_lexicons`) |
+| [Repositories, MST & CAR Archives](@ref) (`ATProto.Repo`) | Merkle Search Trees (`MST`), CAR v1/v2 import & export, signed v3 repo commits & diffs |
 | [Lexicon API & Code Generation](@ref) (`ATProto.API`) | Generated Lexicon structs (237 schemas, 193 endpoints), `$type` open-union dispatch (`UnknownObject` fallback), IPLD primitives (`CIDLink`, `ATBytes`, `BlobRef`) |
-| [XRPC Client & Pagination](@ref) (`ATProto.Client`) | `AtpAgent`, JWT session lifecycle, PDS routing from `didDoc`, single-flight `ExpiredToken` refresh, `xrpc`, `eachpage` / `eachitem`, repo CRUD helpers |
+| [XRPC Client & Pagination](@ref) (`ATProto.Client`) | `AtpAgent`, JWT & OAuth sessions, PDS routing, single-flight refresh, `eachpage`/`eachitem`, social actions (`like!`, `repost!`, `follow!`, `reply!`, `quote_post!`), embeds, notifications, bookmarks, Chat DMs, session persistence |
+| [OAuth 2.1 (PKCE + DPoP + PAR) & Service Auth](@ref) (`ATProto.OAuth`) | OAuth 2.1 metadata discovery, PAR, PKCE, DPoP proofs + nonce retry, `AtpAgent(oauth_session)`, inter-service JWT creation & verification |
 | [RichText & Facets](@ref) (`ATProto.RichText`) | 0-based UTF-8 byte-offset facet detection (mentions, links, hashtags), `RichTextBuilder`, grapheme counting, segment rendering |
-| [Jetstream Streaming](@ref) (`ATProto.Jetstream`) | Real-time `Channel{JetstreamEvent}` WebSocket firehose consumer with live `options_update` and cursor-rewound reconnect |
+| [Jetstream Streaming](@ref) (`ATProto.Jetstream`) | Real-time `Channel{JetstreamEvent}` WebSocket firehose with Zstandard compression (`compress=true`, custom dicts), `options_update`, cursor-rewound reconnect & file checkpoints |
 
 ## Quickstart
 

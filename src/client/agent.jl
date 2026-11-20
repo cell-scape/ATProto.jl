@@ -279,7 +279,7 @@ function _refresh_if_stale!(agent::AtpAgent, failed_access_jwt::String)
                 NSID("com.atproto.server.refreshSession");
                 auth_mode = :refresh,
             )
-            out = JSON.parse(String(copy(resp.body)), ComAtprotoServerRefreshSessionOutput)
+            out = JSON.parse(_body_string(resp.body), ComAtprotoServerRefreshSessionOutput)
             updated = _session_from_output(out; prev = cur)
             agent.state.session = updated
             pds = _extract_pds_endpoint(updated.did_doc)
@@ -378,7 +378,7 @@ function login!(
         auth_mode = :none,
         base_url = agent.service,
     )
-    out = JSON.parse(String(copy(resp.body)), ComAtprotoServerCreateSessionOutput)
+    out = JSON.parse(_body_string(resp.body), ComAtprotoServerCreateSessionOutput)
     s = _session_from_output(out)
     return _update_session!(agent, s, :create)
 end
@@ -406,7 +406,7 @@ function resume_session!(agent::AtpAgent, s::Session; verify::Bool = true)
     _update_session!(agent, s, :resume)
     if verify
         resp = _xrpc_request(agent, "GET", NSID("com.atproto.server.getSession"))
-        info = JSON.parse(String(copy(resp.body)), ComAtprotoServerGetSessionOutput)
+        info = JSON.parse(_body_string(resp.body), ComAtprotoServerGetSessionOutput)
         cur = session(agent)
         merged = Session(
             info.did,
@@ -422,6 +422,15 @@ function resume_session!(agent::AtpAgent, s::Session; verify::Bool = true)
     end
     return s
 end
+
+"""
+    resume_session!(agent::AtpAgent, path::AbstractString; verify::Bool=true) -> Session
+
+Load a [`Session`](@ref) from JSON file `path` via [`load_session`](@ref) and
+restore it onto `agent`.
+"""
+resume_session!(agent::AtpAgent, path::AbstractString; verify::Bool = true) =
+    resume_session!(agent, load_session(path); verify)
 
 """
     logout!(agent::AtpAgent; remote::Bool=true) -> Nothing

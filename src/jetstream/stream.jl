@@ -7,6 +7,7 @@ function _build_jetstream_url(
     cursor::Union{Integer, Nothing} = nothing,
     max_message_size_bytes::Union{Integer, Nothing} = nothing,
     require_hello::Bool = false,
+    compress::Bool = false,
 )
     parts = String[]
     for col in wanted_collections
@@ -24,10 +25,41 @@ function _build_jetstream_url(
     if require_hello
         push!(parts, "requireHello=true")
     end
+    if compress
+        push!(parts, "compress=true")
+    end
 
     isempty(parts) && return String(base_url)
     sep = occursin('?', base_url) ? '&' : '?'
     return string(base_url, sep, join(parts, '&'))
+end
+
+"""
+    save_cursor(path::AbstractString, cursor::Integer) -> String
+
+Atomically persist a Jetstream `time_us` cursor checkpoint to `path` so a
+consumer or bot can resume cleanly across restarts.
+"""
+function save_cursor(path::AbstractString, cursor::Integer)::String
+    dir = dirname(abspath(path))
+    isdir(dir) || mkpath(dir)
+    tmp = string(path, ".tmp.", getpid())
+    write(tmp, string(Int64(cursor), "\n"))
+    mv(tmp, path; force = true)
+    return String(path)
+end
+
+"""
+    load_cursor(path::AbstractString) -> Union{Int64, Nothing}
+
+Load a Jetstream `time_us` cursor previously written by [`save_cursor`](@ref).
+Returns `nothing` if the file does not exist or cannot be parsed.
+"""
+function load_cursor(path::AbstractString)::Union{Int64, Nothing}
+    isfile(path) || return nothing
+    s = strip(read(path, String))
+    isempty(s) && return nothing
+    return tryparse(Int64, s)
 end
 
 """
@@ -153,6 +185,12 @@ that `close(stream)` is called when the block exits.
 - `cursor::Union{Integer, Nothing} = nothing`: Starting cursor in Unix microseconds.
 - `max_message_size_bytes::Union{Integer, Nothing} = nothing`: Optional max event payload size.
 - `require_hello::Bool = false`: Wait for a client `options_update` before streaming events.
+- `compress::Bool = false`: Request Zstandard-compressed binary WebSocket frames (`compress=true`).
+- `zstd_dictionary::Union{AbstractVector{UInt8}, AbstractString, Nothing} = nothing`: Optional
+  custom Zstandard dictionary bytes or file path (e.g. Bluesky Jetstream's `zstd_dictionary`).
+- `cursor_file::Union{AbstractString, Nothing} = nothing`: Optional file path to load the
+  initial cursor from (when `cursor === nothing`) and periodically checkpoint `last_cursor`.
+- `checkpoint_interval::Real = 5.0`: Minimum seconds between `cursor_file` writes.
 - `buffer_size::Int = 1024`: Capacity of the backing `Channel{JetstreamEvent}`.
 - `strict::Bool = false`: If `true`, propagate record deserialization errors instead of falling back to `UnknownObject`.
 - `reconnect::Bool = true`: Automatically reconnect with exponential backoff on disconnect.
@@ -169,6 +207,10 @@ function subscribe_jetstream(;
     cursor::Union{Integer, Nothing} = nothing,
     max_message_size_bytes::Union{Integer, Nothing} = nothing,
     require_hello::Bool = false,
+    compress::Bool = false,
+    zstd_dictionary::Union{AbstractVector{UInt8}, AbstractString, Nothing} = nothing,
+    cursor_file::Union{AbstractString, Nothing} = nothing,
+    checkpoint_interval::Real = 5.0,
     buffer_size::Int = 1024,
     strict::Bool = false,
     reconnect::Bool = true,
@@ -180,9 +222,26 @@ function subscribe_jetstream(;
 )
     cols = String[string(c) for c in wanted_collections]
     dids = String[string(d) for d in wanted_dids]
-    init_cursor = isnothing(cursor) ? nothing : Int64(cursor)
+    cfile = isnothing(cursor_file) ? nothing : String(cursor_file)
+    init_cursor = if !isnothing(cursor)
+        Int64(cursor)
+    elseif !isnothing(cfile)
+        load_cursor(cfile)
+    else
+        nothing
+    end
     max_rec = isnothing(max_reconnects) ? nothing : Int(max_reconnects)
     rewind = Int64(cursor_rewind_us)
+    chk_interval = Float64(checkpoint_interval)
+
+    dict_bytes = if isnothing(zstd_dictionary)
+        nothing
+    elseif zstd_dictionary isa AbstractString
+        read(zstd_dictionary)
+    else
+        Vector{UInt8}(zstd_dictionary)
+    end
+    decompressor = (compress || !isnothing(dict_bytes)) ? ZstdDecompressor(; dictionary = dict_bytes) : nothing
 
     stream = JetstreamStream(
         String(url),
@@ -199,6 +258,7 @@ function subscribe_jetstream(;
     stream.task = @async begin
         delay = Float64(reconnect_delay)
         attempts = 0
+        last_checkpoint = time()
         try
             while !stream.stop_flag[] && isopen(stream.channel)
                 cur = lock(() -> stream.last_cursor, stream.lock)
@@ -216,6 +276,7 @@ function subscribe_jetstream(;
                     cursor = connect_cursor,
                     max_message_size_bytes = max_message_size_bytes,
                     require_hello = require_hello,
+                    compress = compress,
                 )
 
                 try
@@ -228,8 +289,19 @@ function subscribe_jetstream(;
                         try
                             for msg in ws
                                 stream.stop_flag[] && break
+                                payload = try
+                                    if msg isa AbstractVector{UInt8} && (!isnothing(decompressor) || _is_zstd_frame(msg))
+                                        dec = isnothing(decompressor) ? ZstdDecompressor() : decompressor
+                                        zstd_decompress(dec, msg)
+                                    else
+                                        msg
+                                    end
+                                catch e
+                                    isnothing(on_error) || on_error(e)
+                                    continue
+                                end
                                 ev = try
-                                    parse_jetstream_event(msg; strict = strict)
+                                    parse_jetstream_event(payload; strict = strict)
                                 catch e
                                     isnothing(on_error) || on_error(e)
                                     continue
@@ -239,6 +311,14 @@ function subscribe_jetstream(;
                                         stream.last_cursor = ev.time_us
                                     end
                                     stream.events_received += 1
+                                end
+                                if !isnothing(cfile) && !isnothing(ev.time_us) && (time() - last_checkpoint >= chk_interval)
+                                    try
+                                        save_cursor(cfile, ev.time_us)
+                                        last_checkpoint = time()
+                                    catch e
+                                        isnothing(on_error) || on_error(e)
+                                    end
                                 end
                                 if !stream.stop_flag[] && isopen(stream.channel)
                                     try
@@ -275,6 +355,15 @@ function subscribe_jetstream(;
                 delay = min(Float64(max_reconnect_delay), delay * 2.0)
             end
         finally
+            if !isnothing(cfile)
+                final_cur = lock(() -> stream.last_cursor, stream.lock)
+                if !isnothing(final_cur)
+                    try
+                        save_cursor(cfile, final_cur)
+                    catch
+                    end
+                end
+            end
             isopen(stream.channel) && close(stream.channel)
         end
     end

@@ -33,7 +33,7 @@ function _print_usage()
 
     Options:
       --actor <handle-or-did>   Initial Bluesky account to browse (default: bsky.app)
-      --tab <name>              Initial tab: feed | thread | profile | firehose (default: feed)
+      --tab <name>              Initial tab: feed | thread | profile | notifs | chat | firehose (default: feed)
       --theme <name>            Initial phosphor theme (default: esper [Amber CRT];
                                 press P to cycle CRT phosphors or Ctrl+T for all 25+ themes)
       --no-waves                Disable ambient DotWave horizon backdrop (toggle in-app with b)
@@ -69,8 +69,10 @@ function _parse_cli(args::Vector{String})
             tab = t == "feed"     ? BlueskyTUI.TAB_FEED :
                   t == "thread"   ? BlueskyTUI.TAB_THREAD :
                   t == "profile"  ? BlueskyTUI.TAB_PROFILE :
+                  t in ("notifs", "notifications") ? BlueskyTUI.TAB_NOTIFS :
+                  t in ("chat", "dm", "dms")       ? BlueskyTUI.TAB_CHAT :
                   t == "firehose" ? BlueskyTUI.TAB_FIREHOSE :
-                  error("Unknown --tab value: $(args[i]) (expected feed, thread, profile, or firehose)")
+                  error("Unknown --tab value: $(args[i]) (expected feed, thread, profile, notifs, chat, or firehose)")
         elseif a == "--theme" && i < length(args)
             i += 1
             theme_name = args[i]

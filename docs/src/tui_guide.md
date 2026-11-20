@@ -37,12 +37,14 @@ directly from AT Protocol's federated architecture:
 | **Formatted text** | Server-parsed Markdown or stored HTML | Plain UTF-8 text + out-of-band **0-based UTF-8 byte-offset facets** (`ATProto.RichText`) with independent grapheme (`300`) and byte (`3000`) budgets |
 | **Real-time events** | Polling or paid webhook / enterprise firehose tiers | Open real-time **Jetstream** WebSocket firehose (`subscribe_jetstream`) with microsecond `time_us` resume cursors |
 
-Every tab in **BSKY·DECK** maps directly onto one of these architectural pillars:
+Every tab in **BSKY·DECK** (organized into modular files under `examples/tui/`: `state.jl`, `rendering.jl`, `actions.jl`, `tabs.jl`, `modals.jl`, `events.jl`) maps directly onto one of these architectural pillars:
 
-- **`AT-5150` + `PVM-14` (`1 Feed`)**: AppView reads, cursor pagination, content-addressed `AtUri`/`CID` records, `StrongRef` likes/reposts/replies, open-union embeds, and byte-indexed RichText rendering.
+- **`AT-5150` + `PVM-14` (`1 Feed`)**: AppView reads, cursor pagination, Saved Feeds / Lists / Private Bookmarks switcher (`s`), content-addressed `AtUri`/`CID` records, `StrongRef` likes/reposts/replies/quotes (`l`/`R`/`p`/`Q`/`B`), Follow/Mute (`F`/`M`), open-union embeds + Image & Alt-Text Gallery (`i`), and byte-indexed RichText rendering.
 - **`VT-AT220` (`2 Thread`)**: Recursive open-union thread trees (`ThreadViewPost` / `NotFoundPost` / `BlockedPost`).
-- **`IBM-3270` (`3 Profile`)**: Standalone bidirectional DID ↔ handle cryptographic verification (`resolve_identity`).
-- **`JS-MODEM` + `TEK-4010` + `TTY-LIVE` (`4 Firehose`)**: Open Jetstream WebSocket streaming into an Elm `TaskQueue` and live events/sec `Sparkline`.
+- **`IBM-3270` (`3 Profile`)**: Standalone bidirectional DID ↔ handle cryptographic verification (`resolve_identity`), Follow/Mute actions, and profile media inspection.
+- **`DEC-LA120` (`4 Notifs`)**: Live notifications teletype pager (`get_notifications`, `get_unread_count`, `update_seen_notifications!`) with unread badge polling.
+- **`TTY-DM300` + `TTY-MSG` (`5 Chat`)**: Direct Messages routed via AT Protocol service proxying (`atproto-proxy: did:web:api.bsky.chat#bsky_chat` through `chat_agent` / `list_convos` / `get_convo_messages` / `send_chat_message!`).
+- **`JS-MODEM` + `TEK-4010` + `TTY-LIVE` (`6 Firehose`)**: Open Jetstream WebSocket streaming into an Elm `TaskQueue` and live events/sec `Sparkline`.
 
 ---
 
@@ -419,7 +421,7 @@ Tachikoma.view(m, f)
 @assert find_text(tb, "PVM-14") !== nothing
 ```
 
-Run all 120 headless assertions anytime:
+Run all 158 headless assertions anytime:
 
 ```bash
 julia -t auto --project=examples/tui examples/tui/test_tui.jl

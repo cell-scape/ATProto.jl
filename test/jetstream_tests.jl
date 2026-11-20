@@ -4,9 +4,8 @@ using ATProto.Jetstream
 using ATProto.Syntax
 using HTTP
 using JSON
+using Sockets
 using Test
-
-const Sockets = HTTP.Sockets
 
 @testset "Jetstream WebSocket Streaming" begin
     @testset "URL builder" begin
@@ -20,6 +19,7 @@ const Sockets = HTTP.Sockets
             cursor = 1725911162329308,
             max_message_size_bytes = 65536,
             require_hello = true,
+            compress = true,
         )
         @test occursin("wantedCollections=app.bsky.feed.post", u1)
         @test occursin("wantedCollections=app.bsky.feed.like", u1)
@@ -27,6 +27,7 @@ const Sockets = HTTP.Sockets
         @test occursin("cursor=1725911162329308", u1)
         @test occursin("maxMessageSizeBytes=65536", u1)
         @test occursin("requireHello=true", u1)
+        @test occursin("compress=true", u1)
     end
 
     @testset "Event parsing (commit, identity, account, unknown & malformed fallback)" begin
@@ -177,10 +178,10 @@ const Sockets = HTTP.Sockets
             ),
         ))
 
-        server = HTTP.WebSockets.listen!(Sockets.localhost, 0) do ws
+        server = HTTP.WebSockets.listen!("127.0.0.1", 0) do ws
             conn_count[] += 1
             n = conn_count[]
-            push!(targets, ws.request.target)
+            push!(targets, ws.handshake_request.target)
             if n == 1
                 # Send event 1, read an options_update from client, then drop connection to trigger reconnect!
                 HTTP.WebSockets.send(ws, ev1)
@@ -199,8 +200,7 @@ const Sockets = HTTP.Sockets
         end
 
         try
-            _, port = Sockets.getsockname(server.listener.server)
-            ws_url = "ws://127.0.0.1:$port/subscribe"
+            ws_url = "ws://$(server.bound_address)/subscribe"
 
             received = JetstreamEvent[]
             subscribe_jetstream(
@@ -240,6 +240,82 @@ const Sockets = HTTP.Sockets
             @test upd["payload"]["wantedCollections"] == ["app.bsky.feed.post", "app.bsky.feed.like"]
         finally
             close(server)
+        end
+    end
+
+    @testset "Zstandard compression, custom dictionaries & cursor checkpointing" begin
+        sample_json = JSON.json(Dict(
+            "did" => "did:plc:z72i7hdynmk6r22z27h6tvur",
+            "time_us" => 55_000_000,
+            "kind" => "commit",
+            "commit" => Dict(
+                "rev" => "3l3qo2vutsw2b",
+                "operation" => "create",
+                "collection" => "app.bsky.feed.post",
+                "rkey" => "3l3qo2vuowo2b",
+                "cid" => "bafyzstd1",
+                "record" => Dict(
+                    "\$type" => "app.bsky.feed.post",
+                    "text" => "Compressed Jetstream event with repeated tokens app.bsky.feed.post!",
+                    "createdAt" => "2026-11-19T22:00:00Z",
+                ),
+            ),
+        ))
+
+        # Standard zstd round trip
+        comp = zstd_compress(sample_json)
+        @test Jetstream._is_zstd_frame(comp)
+        decomp = zstd_decompress(comp)
+        @test String(decomp) == sample_json
+
+        # Custom dictionary round trip (simulating Jetstream's custom zstd dictionary)
+        dict_bytes = Vector{UInt8}(codeunits(repeat("app.bsky.feed.post did:plc: createdAt collection operation commit rev rkey ", 40)))
+        comp_dict = zstd_compress(sample_json; dictionary = dict_bytes)
+        dec = ZstdDecompressor(; dictionary = dict_bytes)
+        @test String(zstd_decompress(dec, comp_dict)) == sample_json
+
+        # Cursor file save / load
+        mktempdir() do tmpdir
+            cpath = joinpath(tmpdir, "nested", "jetstream.cursor")
+            @test load_cursor(cpath) === nothing
+            save_cursor(cpath, 42_000_000)
+            @test load_cursor(cpath) == 42_000_000
+
+            # Loopback WebSocket streaming binary zstd-compressed frames + cursor_file checkpoint & auto-resume
+            seen_targets = String[]
+            ws_server = HTTP.WebSockets.listen!("127.0.0.1", 0) do ws
+                push!(seen_targets, ws.handshake_request.target)
+                HTTP.WebSockets.send(ws, comp_dict)
+                try
+                    for _ in ws
+                    end
+                catch
+                end
+            end
+
+            try
+                ws_url = "ws://$(ws_server.bound_address)/subscribe"
+                subscribe_jetstream(
+                    url = ws_url,
+                    compress = true,
+                    zstd_dictionary = dict_bytes,
+                    cursor_file = cpath,
+                    checkpoint_interval = 0.0,
+                    reconnect = false,
+                ) do stream
+                    ev = take!(stream)
+                    @test ev isa JetstreamCommitEvent
+                    @test ev.time_us == 55_000_000
+                    @test ev.record isa API.AppBskyFeedPost
+                    @test occursin("Compressed Jetstream event", ev.record.text)
+                end
+                @test length(seen_targets) == 1
+                @test occursin("compress=true", seen_targets[1])
+                @test occursin("cursor=42000000", seen_targets[1])
+                @test load_cursor(cpath) == 55_000_000
+            finally
+                close(ws_server)
+            end
         end
     end
 end

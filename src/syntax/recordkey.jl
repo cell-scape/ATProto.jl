@@ -250,6 +250,14 @@ function next_tid(; clockid::Union{Integer, Nothing}=nothing)
     return TID(_Unchecked(), _tid_encode_u64(raw))
 end
 
+"""
+    TID() -> TID
+
+Generate a fresh monotonically increasing [`TID`](@ref) (convenience alias for
+[`next_tid`](@ref)).
+"""
+TID() = next_tid()
+
 function Base.tryparse(::Type{TID}, s::AbstractString)
     is_valid_tid(s) || return nothing
     return TID(_Unchecked(), String(s))

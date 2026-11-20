@@ -26,6 +26,25 @@ subscribe_jetstream(
 end
 ```
 
+## Zstandard Compression & Cursor Checkpointing
+
+Enable `compress = true` (optionally supplying Bluesky Jetstream's custom dictionary via
+`zstd_dictionary`) to reduce wire bandwidth by ~70%, and pass `cursor_file` to
+automatically persist and resume your stream cursor across process restarts:
+
+```julia
+subscribe_jetstream(
+    wanted_collections = ["app.bsky.feed.post"],
+    compress = true,
+    zstd_dictionary = "path/to/zstd_dictionary",
+    cursor_file = "jetstream.cursor",
+) do stream
+    for ev in stream
+        ...
+    end
+end
+```
+
 ## Reference
 
 ```@autodocs

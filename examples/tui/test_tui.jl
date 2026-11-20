@@ -249,16 +249,140 @@ function build_mock_agent(; authenticated::Bool = false)
                 "handle" => "bsky.app",
                 "displayName" => "Bluesky Official",
                 "description" => "Official account. Visit https://bsky.social #ATProto",
+                "avatar" => "https://cdn.example/avatar.jpg",
+                "banner" => "https://cdn.example/banner.jpg",
                 "followersCount" => 12_500_000,
                 "followsCount" => 15,
                 "postsCount" => 842,
                 "createdAt" => "2023-04-12T00:00:00.000Z",
             ))
+        elseif occursin("app.bsky.notification.listNotifications", url)
+            return _json_response(Dict(
+                "notifications" => Any[
+                    Dict(
+                        "uri" => "at://did:plc:alice12345678901234567890/app.bsky.feed.like/3k2nf1",
+                        "cid" => "bafynf1",
+                        "author" => Dict("did" => "did:plc:alice12345678901234567890", "handle" => "alice.bsky.social", "displayName" => "Alice"),
+                        "reason" => "like",
+                        "reasonSubject" => "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3k2la",
+                        "record" => Dict("\$type" => "app.bsky.feed.like", "createdAt" => "2026-04-12T12:02:00.000Z",
+                                         "subject" => Dict("uri" => "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3k2la", "cid" => "bafyreihash1")),
+                        "isRead" => false,
+                        "indexedAt" => "2026-04-12T12:02:01.000Z",
+                    ),
+                    Dict(
+                        "uri" => "at://did:plc:bob1234567890123456789012/app.bsky.graph.follow/3k2nf2",
+                        "cid" => "bafynf2",
+                        "author" => Dict("did" => "did:plc:bob1234567890123456789012", "handle" => "bob.example.com", "displayName" => "Bob"),
+                        "reason" => "follow",
+                        "record" => Dict("\$type" => "app.bsky.graph.follow", "createdAt" => "2026-04-12T12:01:00.000Z",
+                                         "subject" => "did:plc:me123456789012345678901234"),
+                        "isRead" => true,
+                        "indexedAt" => "2026-04-12T12:01:01.000Z",
+                    ),
+                ],
+            ))
+        elseif occursin("app.bsky.notification.getUnreadCount", url)
+            return _json_response(Dict("count" => 3))
+        elseif occursin("app.bsky.notification.updateSeen", url)
+            return _json_response(Dict())
+        elseif occursin("app.bsky.actor.getPreferences", url)
+            return _json_response(Dict(
+                "preferences" => Any[Dict(
+                    "\$type" => "app.bsky.actor.defs#savedFeedsPrefV2",
+                    "items" => Any[
+                        Dict("id" => "sf1", "pinned" => true, "type" => "timeline", "value" => "following"),
+                        Dict("id" => "sf2", "pinned" => true, "type" => "feed", "value" => "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot"),
+                    ],
+                )],
+            ))
+        elseif occursin("app.bsky.feed.getFeedGenerators", url)
+            return _json_response(Dict(
+                "feeds" => Any[Dict(
+                    "uri" => "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot",
+                    "cid" => "bafygen1",
+                    "did" => "did:plc:z72i7hdynmk6r22z27h6tvur",
+                    "creator" => Dict("did" => "did:plc:z72i7hdynmk6r22z27h6tvur", "handle" => "bsky.app"),
+                    "displayName" => "Discover Hot",
+                    "indexedAt" => "2026-04-12T00:00:00.000Z",
+                )],
+            ))
+        elseif occursin("app.bsky.feed.getFeed", url)
+            return _json_response(Dict(
+                "feed" => Any[Dict("post" => _sample_post_json(
+                    uri = "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3k2hot",
+                    cid = "bafyhot",
+                    text = "Trending post inside Discover Hot feed!",
+                    facets = Any[],
+                    embed = nothing,
+                ))],
+            ))
+        elseif occursin("app.bsky.graph.getLists", url)
+            return _json_response(Dict("lists" => Any[]))
+        elseif occursin("app.bsky.bookmark.getBookmarks", url)
+            return _json_response(Dict(
+                "bookmarks" => Any[Dict(
+                    "subject" => Dict("uri" => "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.post/3k2la", "cid" => "bafyreihash1"),
+                    "item" => _sample_post_json(text = "Saved bookmark post!"),
+                )],
+            ))
+        elseif occursin("app.bsky.bookmark.createBookmark", url) || occursin("app.bsky.bookmark.deleteBookmark", url)
+            return _json_response(Dict())
+        elseif occursin("app.bsky.graph.muteActor", url) || occursin("app.bsky.graph.unmuteActor", url)
+            return _json_response(Dict())
+        elseif occursin("chat.bsky.convo.listConvos", url)
+            return _json_response(Dict(
+                "convos" => Any[Dict(
+                    "id" => "convo-42",
+                    "rev" => "rev1",
+                    "muted" => false,
+                    "unreadCount" => 1,
+                    "members" => Any[
+                        Dict("did" => "did:plc:me123456789012345678901234", "handle" => "tester.bsky.social", "displayName" => "Tester"),
+                        Dict("did" => "did:plc:alice12345678901234567890", "handle" => "alice.bsky.social", "displayName" => "Alice"),
+                    ],
+                )],
+            ))
+        elseif occursin("chat.bsky.convo.getMessages", url)
+            return _json_response(Dict(
+                "messages" => Any[Dict(
+                    "\$type" => "chat.bsky.convo.defs#messageView",
+                    "id" => "m1",
+                    "rev" => "r1",
+                    "text" => "Hey! Loving the CRT TUI!",
+                    "sender" => Dict("did" => "did:plc:alice12345678901234567890"),
+                    "sentAt" => "2026-04-12T12:03:00.000Z",
+                )],
+            ))
+        elseif occursin("chat.bsky.convo.sendMessage", url)
+            parsed = JSON.parse(String(body), Dict{String, Any})
+            return _json_response(Dict(
+                "\$type" => "chat.bsky.convo.defs#messageView",
+                "id" => "m2",
+                "rev" => "r2",
+                "text" => parsed["message"]["text"],
+                "sender" => Dict("did" => "did:plc:me123456789012345678901234"),
+                "sentAt" => "2026-04-12T12:04:00.000Z",
+            ))
+        elseif occursin("chat.bsky.convo.updateRead", url)
+            return _json_response(Dict(
+                "convo" => Dict(
+                    "id" => "convo-42",
+                    "rev" => "r2",
+                    "muted" => false,
+                    "unreadCount" => 0,
+                    "members" => Any[
+                        Dict("did" => "did:plc:alice12345678901234567890", "handle" => "alice.bsky.social"),
+                    ],
+                ),
+            ))
         elseif occursin("com.atproto.identity.resolveHandle", url)
             return _json_response(Dict("did" => "did:plc:alice12345678901234567890"))
         elseif occursin("com.atproto.repo.createRecord", url)
+            parsed = JSON.parse(String(body), Dict{String, Any})
+            col = get(parsed, "collection", "app.bsky.feed.like")
             return _json_response(Dict(
-                "uri" => "at://did:plc:me123456789012345678901234/app.bsky.feed.like/3k2new",
+                "uri" => "at://did:plc:me123456789012345678901234/$col/3k2new",
                 "cid" => "bafyreinew",
             ))
         elseif occursin("com.atproto.repo.deleteRecord", url)
@@ -482,7 +606,7 @@ end
         @test find_text(tb_cmp, "1 tags") !== nothing
         Tachikoma.update!(m, KeyEvent(:ctrl, 'd'))
         @test m.modal === :none
-        @test occursin("Dry-run OK", m.status_msg)
+        @test occursin("Dry-run Post OK", m.status_msg)
 
         # Login modal ('L') — password must NEVER appear in plaintext in rendered buffer!
         Tachikoma.update!(m, KeyEvent('L'))
@@ -582,6 +706,92 @@ end
 
         tb_auth = render_model(m)
         @test find_text(tb_auth, "@tester.bsky.social") !== nothing
+
+        # Quote-post ('Q') and publish
+        Tachikoma.update!(m, KeyEvent('Q'))
+        @test m.modal === :compose
+        @test !isnothing(m.compose_quote_of)
+        tb_q = render_model(m)
+        @test find_text(tb_q, "Quote @alice.bsky.social") !== nothing
+        type_string!(m, "Quoting from the CRT deck!")
+        Tachikoma.update!(m, KeyEvent(:ctrl, 'd'))
+        @test m.modal === :none
+        @test drain_until!(m, () -> occursin("Quote-post published", m.status_msg))
+
+        # Bookmark toggle ('B')
+        Tachikoma.update!(m, KeyEvent('B'))
+        @test drain_until!(m, () -> !isempty(m.bookmarked_uris))
+        tb_bm = render_model(m)
+        @test find_text(tb_bm, "SAVED") !== nothing
+
+        # Saved Feeds & Bookmarks switcher ('s') -> switch to Discover Hot feed
+        Tachikoma.update!(m, KeyEvent('s'))
+        @test drain_until!(m, () -> m.modal === :feeds && length(m.saved_feeds) >= 3)
+        tb_sf = render_model(m)
+        @test find_text(tb_sf, "Discover Hot") !== nothing
+        # Move down to item 3 (Discover Hot) and press Enter
+        Tachikoma.update!(m, KeyEvent('j'))
+        Tachikoma.update!(m, KeyEvent('j'))
+        Tachikoma.update!(m, KeyEvent(:enter))
+        @test m.modal === :none
+        @test m.feed_mode === :saved_feed
+        @test drain_until!(m, () -> !isempty(m.feed_entries) && occursin("Discover Hot", m.feed_entries[1].post.record.text))
+
+        # Load author feed again and inspect image alt-text gallery ('i') on post #2
+        m.feed_mode = :author
+        BlueskyTUI._fetch_feed!(m; append = false)
+        @test drain_until!(m, () -> length(m.feed_entries) == 2)
+        Tachikoma.update!(m, KeyEvent('j'))
+        Tachikoma.update!(m, KeyEvent('i'))
+        @test m.modal === :gallery
+        @test length(m.gallery_images) == 1
+        tb_gal = render_model(m)
+        @test find_text(tb_gal, "Golden sunset over mountains") !== nothing
+        @test find_text(tb_gal, "1600×900") !== nothing
+        Tachikoma.update!(m, KeyEvent(:escape))
+        @test m.modal === :none
+
+        # Profile Follow ('F') & Mute ('M') & Profile Media Gallery ('i')
+        Tachikoma.update!(m, KeyEvent('o'))
+        @test m.tabs.active == BlueskyTUI.TAB_PROFILE
+        @test drain_until!(m, () -> !isnothing(m.profile_data))
+        Tachikoma.update!(m, KeyEvent('F'))
+        @test drain_until!(m, () -> !isnothing(m.profile_data.viewer) && !isnothing(m.profile_data.viewer.following))
+        Tachikoma.update!(m, KeyEvent('M'))
+        @test drain_until!(m, () -> !isnothing(m.profile_data.viewer) && something(m.profile_data.viewer.muted, false))
+        Tachikoma.update!(m, KeyEvent('i'))
+        @test m.modal === :gallery && length(m.gallery_images) == 2  # Avatar + Banner
+        Tachikoma.update!(m, KeyEvent(:escape))
+
+        # Notifications Tab ('4') — DEC-LA120, unread badge, mark seen ('m'), open thread ('Enter')
+        Tachikoma.update!(m, KeyEvent('4'))
+        @test m.tabs.active == BlueskyTUI.TAB_NOTIFS
+        @test drain_until!(m, () -> length(m.notifs) == 2 && m.notifs_unread == 3)
+        tb_nf = render_model(m)
+        @test find_text(tb_nf, "DEC-LA120") !== nothing
+        @test find_text(tb_nf, "3 UNREAD") !== nothing
+        @test find_text(tb_nf, "alice.bsky.social") !== nothing
+        Tachikoma.update!(m, KeyEvent('m'))
+        @test drain_until!(m, () -> m.notifs_unread == 0)
+        Tachikoma.update!(m, KeyEvent(:enter))
+        @test m.tabs.active == BlueskyTUI.TAB_THREAD
+
+        # Chat / DMs Tab ('5') — TTY-DM300 via with_proxy, read & send DM ('c')
+        Tachikoma.update!(m, KeyEvent('5'))
+        @test m.tabs.active == BlueskyTUI.TAB_CHAT
+        @test drain_until!(m, () -> length(m.chat_convos) == 1 && length(m.chat_messages) == 1)
+        tb_ch = render_model(m)
+        @test find_text(tb_ch, "TTY-DM300") !== nothing
+        @test find_text(tb_ch, "Loving the CRT TUI!") !== nothing
+        Tachikoma.update!(m, KeyEvent('c'))
+        @test m.modal === :chat_send
+        type_string!(m, "Hello back from ATProto.jl!")
+        Tachikoma.update!(m, KeyEvent(:enter))
+        @test m.modal === :none
+        @test drain_until!(m, () -> length(m.chat_messages) == 2)
+        tb_ch2 = render_model(m)
+        @test find_text(tb_ch2, "Hello back from ATProto.jl!") !== nothing
+
         Tachikoma.cleanup!(m)
     end
 

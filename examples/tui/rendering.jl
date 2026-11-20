@@ -690,6 +690,7 @@ function render_feed_cards!(
     focused::Bool = true,
     tick::Int = 0,
     scanlines::Bool = true,
+    bookmarked_uris::Set{String} = Set{String}(),
 )::Int
     (area.width < 6 || area.height < 3) && return offset
     n = length(entries)
@@ -796,9 +797,10 @@ function render_feed_cards!(
         body_fg = is_sel ? theme().text_bright : theme().text
         set_string!(buf, cx0, y0 + 1, truncate_chars(snip, inner_w), Style(fg = body_fg, bg = cbg); max_x = max_cx)
 
-        # Row 3: Engagement counts + tactile embed chip
+        # Row 3: Engagement counts + bookmark indicator + tactile embed chip
         liked = !isnothing(post.viewer) && !isnothing(post.viewer.like)
         reposted = !isnothing(post.viewer) && !isnothing(post.viewer.repost)
+        bookmarked = string(post.uri) in bookmarked_uris
         badge = embed_badge(post.embed)
         badge_w = isempty(badge) ? 0 : textwidth(badge) + 3
         stat_max = max(cx0, max_cx - badge_w)
@@ -816,12 +818,20 @@ function render_feed_cards!(
             Style(fg = reposted ? theme().success : theme().text_dim, bg = cbg, bold = reposted);
             max_x = stat_max,
         )
-        set_string!(
+        sx = set_string!(
             buf, sx, y0 + 2,
             "💬 " * format_count(post.replyCount),
             Style(fg = theme().text_dim, bg = cbg);
             max_x = stat_max,
         )
+        if bookmarked
+            set_string!(
+                buf, sx + 2, y0 + 2,
+                "⚑",
+                Style(fg = theme().warning, bg = cbg, bold = true);
+                max_x = stat_max,
+            )
+        end
 
         if !isempty(badge) && max_cx - badge_w + 2 >= cx0
             bf = _embed_badge_field(post.embed)
@@ -864,7 +874,7 @@ end
 
 # ── Post Detail Inspector (Inside PVM-14 CRT Monitor) ───────────────
 
-function post_detail_lines(entry::FeedEntry)::Vector{Vector{Span}}
+function post_detail_lines(entry::FeedEntry; bookmarked::Bool = false)::Vector{Vector{Span}}
     post = entry.post
     author = post.author
     rec = post.record
@@ -946,6 +956,7 @@ function post_detail_lines(entry::FeedEntry)::Vector{Vector{Span}}
         Span("  ", dim_s),
         Span(" ❝ $(format_count(post.quoteCount)) quotes ",
              Style(fg = theme().text, bg = _pill_bg(:border))),
+        bookmarked ? Span("  ⚑ SAVED ", _chip_style(:warning)) : Span("", dim_s),
     ])
 
     push!(lines, Span[])
@@ -965,8 +976,9 @@ function post_detail_lines(entry::FeedEntry)::Vector{Vector{Span}}
         Span(" ↵/t ", _keycap_style()), Span(" Thread  ", dim_s),
         Span(" o ", _keycap_style()), Span(" Profile  ", dim_s),
         Span(" p ", _keycap_style()), Span(" Reply  ", dim_s),
-        Span(" l ", _keycap_style()), Span(" Like  ", dim_s),
-        Span(" R ", _keycap_style()), Span(" Repost", dim_s),
+        Span(" Q ", _keycap_style()), Span(" Quote  ", dim_s),
+        Span(" B ", _keycap_style()), Span(" Bookmark  ", dim_s),
+        Span(" i ", _keycap_style()), Span(" Media", dim_s),
     ])
     return lines
 end
@@ -1179,8 +1191,125 @@ function profile_to_span_lines(
     push!(lines, Span[])
     push!(lines, [
         Span(" f ", _keycap_style()), Span(" Load Feed  ", dim_s),
-        Span(" g ", _keycap_style()), Span(" Go to Actor  ", dim_s),
+        Span(" F ", _keycap_style()), Span(" Follow/Unfollow  ", dim_s),
+        Span(" M ", _keycap_style()), Span(" Mute  ", dim_s),
+        Span(" i ", _keycap_style()), Span(" Media  ", dim_s),
         Span(" r ", _keycap_style()), Span(" Refresh", dim_s),
     ])
     return lines
+end
+
+# ── Notifications, Chat DMs & Saved Feeds Renderers ─────────────────
+
+function _notif_badge(reason::AbstractString)::Tuple{String, Symbol}
+    reason == "like"    && return (" ♥ LIKE ", :error)
+    reason == "repost"  && return (" ↻ RPST ", :success)
+    reason == "follow"  && return (" + FLW  ", :accent)
+    reason == "mention" && return (" @ MNTN ", :primary)
+    reason == "reply"   && return (" ↩ RPLY ", :accent)
+    reason == "quote"   && return (" ❝ QUOT ", :warning)
+    return (" ◈ $(uppercase(first(String(reason), 4))) ", :secondary)
+end
+
+function notif_to_list_item(n::API.AppBskyNotificationListNotificationsNotification)::ListItem
+    badge, _ = _notif_badge(n.reason)
+    mark = n.isRead ? " " : "●"
+    rel = format_relative_time(n.indexedAt)
+    return ListItem("$mark$badge @$(n.author.handle) · $rel", n.isRead ? tstyle(:text_dim) : tstyle(:text_bright))
+end
+
+function notifs_to_span_lines(
+    notifs::Vector{API.AppBskyNotificationListNotificationsNotification},
+    selected::Int,
+)::Vector{Vector{Span}}
+    lines = Vector{Vector{Span}}()
+    dim_s = tstyle(:text_dim)
+    sel_i = clamp(selected, 1, max(1, length(notifs)))
+
+    for (i, n) in enumerate(notifs)
+        is_sel = (i == sel_i)
+        badge, bfield = _notif_badge(n.reason)
+        rel = format_relative_time(n.indexedAt)
+        rail = is_sel ? Span("┃ ", tstyle(:accent, bold = true)) : Span("│ ", tstyle(:border, dim = true))
+        unread_dot = n.isRead ? Span("  ", dim_s) : Span("● ", tstyle(:error, bold = true))
+        disp = strip(something(n.author.displayName, ""))
+        who = isempty(disp) ? "@$(n.author.handle)" : "$disp (@$(n.author.handle))"
+        push!(lines, Span[
+            rail,
+            unread_dot,
+            Span(badge, _chip_style(bfield)),
+            Span("  ", dim_s),
+            Span(who, is_sel ? tstyle(:text_bright, bold = true, hyperlink = bsky_profile_url(n.author.handle)) :
+                              tstyle(:accent, hyperlink = bsky_profile_url(n.author.handle))),
+            Span("  ·  $rel", dim_s),
+        ])
+
+        snip = if n.record isa API.AppBskyFeedPost
+            safe_one_line(n.record.text)
+        elseif !isnothing(n.reasonSubject)
+            "Target: $(n.reasonSubject)"
+        else
+            ""
+        end
+        if !isempty(snip)
+            push!(lines, Span[
+                rail,
+                Span("    ", dim_s),
+                Span(truncate_chars(snip, 88), is_sel ? tstyle(:text_bright) : tstyle(:text)),
+            ])
+        end
+        push!(lines, Span[Span(repeat(string(SCANLINE), 64), tstyle(:border, dim = true))])
+    end
+    return lines
+end
+
+function convo_peer_label(convo::API.ChatBskyConvoDefsConvoView, my_did::AbstractString)::String
+    peers = [m for m in convo.members if String(m.did) != String(my_did)]
+    shown = isempty(peers) ? convo.members : peers
+    isempty(shown) && return convo.id
+    parts = [isempty(strip(something(p.displayName, ""))) ? "@$(p.handle)" : "$(p.displayName) (@$(p.handle))" for p in shown]
+    return join(parts, ", ")
+end
+
+function convo_to_list_item(convo::API.ChatBskyConvoDefsConvoView, my_did::AbstractString)::ListItem
+    peer = truncate_chars(convo_peer_label(convo, my_did), 26)
+    unread = convo.unreadCount > 0 ? " ($(convo.unreadCount))" : ""
+    icon = convo.unreadCount > 0 ? "● " : convo.muted ? "◌ " : "◈ "
+    return ListItem("$icon$peer$unread", convo.unreadCount > 0 ? tstyle(:text_bright, bold = true) : tstyle(:text))
+end
+
+function chat_messages_to_span_lines(
+    convo::API.ChatBskyConvoDefsConvoView,
+    messages::Vector{Any},
+    my_did::AbstractString,
+)::Vector{Vector{Span}}
+    lines = Vector{Vector{Span}}()
+    dim_s = tstyle(:text_dim)
+    handles = Dict{String, String}(String(m.did) => String(m.handle) for m in convo.members)
+
+    for msg in messages
+        if msg isa API.ChatBskyConvoDefsMessageView
+            s_did = String(msg.sender.did)
+            is_me = (s_did == String(my_did))
+            who = is_me ? "YOU" : "@" * get(handles, s_did, truncate_chars(s_did, 18))
+            rel = format_relative_time(msg.sentAt)
+            chip_field = is_me ? :success : :accent
+            push!(lines, Span[
+                Span(" $who ", _chip_style(chip_field)),
+                Span("  $rel", dim_s),
+            ])
+            prefix = Span[Span(is_me ? "  ┃ " : "  │ ", tstyle(chip_field))]
+            append!(lines, richtext_to_span_lines(msg.text, msg.facets; prefix_spans = prefix))
+            push!(lines, Span[])
+        elseif msg isa API.ChatBskyConvoDefsDeletedMessageView
+            push!(lines, Span[Span("  ◌ [message deleted]", dim_s)])
+            push!(lines, Span[])
+        end
+    end
+    return lines
+end
+
+function saved_feed_to_list_item(sf)::ListItem
+    pin = sf.pinned ? "★ " : "  "
+    return ListItem("$pin$(sf.label)", sf.pinned ? tstyle(:text_bright, bold = true) : tstyle(:text))
 end

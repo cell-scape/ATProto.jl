@@ -59,12 +59,12 @@ function _decode_response(
         return nothing
     end
     if out_encoding == "application/json" || (!isnothing(out_type) && isnothing(out_encoding))
-        body_str = String(copy(resp.body))
+        body_str = _body_string(resp.body)
         isempty(body_str) && return nothing
         return isnothing(out_type) ? JSON.parse(body_str) : JSON.parse(body_str, out_type)
     end
     # Binary / CAR / JSONL / blob response
-    return Vector{UInt8}(resp.body)
+    return _body_bytes(resp.body)
 end
 
 function _normalize_extra_headers(headers)

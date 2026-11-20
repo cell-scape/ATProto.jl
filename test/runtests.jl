@@ -12,14 +12,21 @@ end
 const init_code = quote
     using ATProto
     using ATProto.Syntax
+    using ATProto.Crypto
+    using ATProto.DagCbor
     using ATProto.API
     using ATProto.Identity
+    using ATProto.Repo
     using ATProto.Client
     using ATProto.RichText
+    using ATProto.OAuth
     using ATProto.Jetstream
     using Test
 end
 
 args = parse_args(ARGS)
 testsuite = find_tests(@__DIR__)
+for k in collect(keys(testsuite))
+    startswith(k, "fixtures/") && delete!(testsuite, k)
+end
 runtests(ATProto, args; testsuite, init_worker_code, init_code)

@@ -1,0 +1,26 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/multikey/v1",
+    "https://w3id.org/security/suites/secp256k1-2019/v1"
+  ],
+  "id": "did:plc:ewvi7nx4oun5hl7s6yqkgcto",
+  "alsoKnownAs": [
+    "at://handle.example.com"
+  ],
+  "verificationMethod": [
+    {
+      "id": "did:plc:ewvi7nx4oun5hl7s6yqkgcto#atproto",
+      "type": "Multikey",
+      "controller": "did:plc:ewvi7nx4oun5hl7s6yqkgcto",
+      "publicKeyMultibase": "zDnaevR4D8NGbfpBhCbA6x4dBiifhS2k7v1WyfePWgsqVXbwD"
+    }
+  ],
+  "service": [
+    {
+      "id": "#atproto_pds",
+      "type": "AtprotoPersonalDataServer",
+      "serviceEndpoint": "https://pds.example.com"
+    }
+  ]
+}

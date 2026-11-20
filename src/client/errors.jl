@@ -40,9 +40,16 @@ end
 
 Base.showerror(io::IO, e::AuthError) = print(io, "AuthError: ", e.message)
 
+_body_string(body::AbstractString) = String(body)
+_body_string(body::AbstractVector{UInt8}) = String(copy(body))
+
+_body_bytes(body::Vector{UInt8}) = body
+_body_bytes(body::AbstractVector{UInt8}) = Vector{UInt8}(body)
+_body_bytes(body::AbstractString) = Vector{UInt8}(codeunits(String(body)))
+
 function _parse_xrpc_error(resp::HTTP.Response)
     hdrs = Pair{String, String}[String(k) => String(v) for (k, v) in resp.headers]
-    body_str = String(copy(resp.body))
+    body_str = _body_string(resp.body)
     err_name = ""
     err_msg = ""
 

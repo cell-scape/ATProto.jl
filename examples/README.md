@@ -14,13 +14,16 @@ thick polycarbonate bezels, cooling louvers (`≡≡≡`), recessed curved phosp
 raster scanlines (`v`), ambient rolling `DotWave` horizon waves (`b`), speaker grilles,
 breathing power LEDs, and draggable split panes:
 
-- **4 vintage-hardware tabs** (`1`–`4` or mouse click on connected rounded `BoxTabs`):
-  - **`1 Feed`** — **`AT-5150`** floppy-bay PC unit (spacious 3-row post cards, animated phosphor rail, `[▬▬▬▬●▬▬▬▬]` drive LED, track counter `TRK 01/25`) paired with a **`PVM-14`** broadcast CRT monitor (RichText `Span`s with OSC-8 clickable links, framed embed cards, engagement pills, `◉ BRT / ◉ CNT` dials). Drag the divider border with your mouse to resize panes!
-  - **`2 Thread`** — **`VT-AT220`** terminal on a boxy CRT swivel pedestal showing parent context + focal post (`★ FOCAL`) + nested reply railway tree.
-  - **`3 Profile`** — **`IBM-3270`** identity workstation on a swivel CRT pedestal with stat capsules, bio facet highlighting, and a double-bordered AT Protocol Identity Verification Certificate + illuminated `ID VERIFIED` chin lamp.
-  - **`4 Firehose`** — **`JS-MODEM`** carrier receiver + **`TEK-4010`** storage-tube oscilloscope (`Sparkline` events/sec) + **`TTY-LIVE`** live Jetstream WebSocket commit stream.
+- **6 vintage-hardware tabs** (`1`–`6` or mouse click on connected rounded `BoxTabs`):
+  - **`1 Feed`** — **`AT-5150`** floppy-bay PC unit (spacious 3-row post cards, animated phosphor rail, `[▬▬▬▬●▬▬▬▬]` drive LED, track counter `TRK 01/25`, bookmark flags `⚑`) paired with a **`PVM-14`** broadcast CRT monitor (RichText `Span`s with OSC-8 clickable links, framed embed cards, engagement pills, `◉ BRT / ◉ CNT` dials). Supports Follow/Unfollow (`F`), Mute (`M`), Quote-Post (`Q`), Bookmarks (`B`), Saved Feeds & Lists Switcher (`s`), and Image & Alt-Text Gallery (`i`). Drag the divider border with your mouse to resize panes!
+  - **`2 Thread`** — **`VT-AT220`** terminal on a boxy CRT swivel pedestal showing parent context + focal post (`★ FOCAL`) + nested reply railway tree, with Reply (`p`), Quote-Post (`Q`), and Media Gallery (`i`).
+  - **`3 Profile`** — **`IBM-3270`** identity workstation on a swivel CRT pedestal with stat capsules, bio facet highlighting, Follow/Unfollow (`F`), Mute (`M`), Avatar/Banner Media Inspector (`i`), and a double-bordered AT Protocol Identity Verification Certificate + illuminated `ID VERIFIED` chin lamp.
+  - **`4 Notifs`** — **`DEC-LA120`** teletype pager with live unread count badge on the tab bar & header, reason chips (`LIKE`/`RPST`/`FLW`/`MNTN`/`RPLY`/`QUOT`), mark-all-seen (`m`), and direct jump to target threads/profiles (`Enter`).
+  - **`5 Chat`** — **`TTY-DM300`** encrypted courier terminal routed over `atproto-proxy` (`did:web:api.bsky.chat#bsky_chat`) with a resizable Conversations list, live unread badges, message transcript (`TTY-MSG`), and DM composer (`c`).
+  - **`6 Firehose`** — **`JS-MODEM`** carrier receiver + **`TEK-4010`** storage-tube oscilloscope (`Sparkline` events/sec) + **`TTY-LIVE`** live Jetstream WebSocket commit stream.
+- **Modular architecture**: split cleanly into `state.jl`, `rendering.jl`, `actions.jl`, `tabs.jl`, `modals.jl`, and `events.jl` coordinated by `BlueskyTUI.jl`.
 - **Floating drop-shadowed CRT dialogs & phosphor presets**:
-  - Go-to-Actor (`g`, live `is_valid_handle`/`is_valid_did` validation), Search/Filter (`/`), Compose/Reply (`c`/`p` with a live shimmering `Gauge` for the 300-grapheme budget & live facet chips), masked App Password Login (`L`), Help (`?`).
+  - Go-to-Actor (`g`, live `is_valid_handle`/`is_valid_did` validation), Search/Filter (`/`), Compose/Reply/Quote (`c`/`p`/`Q` with a live shimmering `Gauge` for the 300-grapheme budget & live facet chips), Saved Feeds/Lists/Bookmarks Switcher (`s`), Image & Alt-Text Gallery Inspector (`i`), DM Composer (`c` on Chat), masked App Password Login (`L`), Help (`?`).
   - Press **`P`** to quick-cycle authentic CRT phosphor presets (`esper` Amber CRT → `neuromancer` P31 Green → `kokaku` Cyber Blue → `outrun` Synthwave → `catppuccin` → `paper` Beige Terminal), **`v`** to toggle CRT scanlines, **`b`** to toggle the `DotWave` horizon, or **`Ctrl+T`** for all 25+ Tachikoma themes.
 
 ### Launch
