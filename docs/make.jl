@@ -19,16 +19,22 @@ makedocs(
     doctest = true,
     pages = [
         "Home" => "index.md",
-        "Syntax Primitives" => "syntax.md",
-        "Identity Resolution" => "identity.md",
-        "XRPC Client & Pagination" => "client.md",
-        "RichText & Facets" => "richtext.md",
-        "Jetstream Streaming" => "jetstream.md",
-        "Lexicon API & Codegen" => "api.md",
+        "Getting Started" => "getting_started.md",
+        "Tutorial" => "tutorial.md",
+        "Building a Retro CRT TUI" => "tui_guide.md",
+        "Reference" => [
+            "Syntax Primitives" => "syntax.md",
+            "Identity Resolution" => "identity.md",
+            "XRPC Client & Pagination" => "client.md",
+            "RichText & Facets" => "richtext.md",
+            "Jetstream Streaming" => "jetstream.md",
+            "Lexicon API & Codegen" => "api.md",
+        ],
     ],
 )
 
-# deploydocs(
-#     repo = "github.com/BradleyDowling/ATProto.jl.git",
-#     devbranch = "main",
-# )
+deploydocs(
+    repo = "github.com/cell-scape/ATProto.jl.git",
+    devbranch = "main",
+    push_preview = true,
+)

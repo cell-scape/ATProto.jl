@@ -1,0 +1,4 @@
+[Tachikoma]
+layout_BlueskyModel_feed_split_cs = "P45,L1"
+layout_BlueskyModel_feed_split_dir = "Horizontal"
+layout_BlueskyModel_feed_split_orig = "H|P45,L1"

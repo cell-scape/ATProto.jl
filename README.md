@@ -39,6 +39,18 @@ subscribe_jetstream(wanted_collections=["app.bsky.feed.post"]) do stream
 end
 ```
 
+## Examples & Documentation
+
+- Runnable examples live in [`examples/`](examples/README.md):
+  - [`examples/tui/bluesky_tui.jl`](examples/tui/bluesky_tui.jl) — interactive Bluesky TUI viewer built with `Tachikoma.jl` (Feed/Timeline, Thread tree, Profile + verified DID card, live Jetstream firehose + Sparkline, search, compose, likes/reposts)
+  - [`examples/bluesky_cli.jl`](examples/bluesky_cli.jl) — full Bluesky CLI (`profile`, `feed`, `thread`, `firehose`, `post --dry-run`)
+  - [`examples/jetstream_monitor.jl`](examples/jetstream_monitor.jl) — real-time Jetstream throughput & hashtag counter
+  - [`examples/richtext_renderer.jl`](examples/richtext_renderer.jl) — RichText builder & HTML/Markdown renderer
+- Documentation source (Getting Started, Tutorial, and API Reference) lives in [`docs/`](docs/src/index.md); build locally with:
+  ```bash
+  julia --project=docs -e 'push!(LOAD_PATH, pwd()); include("docs/make.jl")'
+  ```
+
 ## Development
 
 ### Regenerate Lexicon Types
