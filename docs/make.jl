@@ -1,15 +1,34 @@
 using Documenter
 using ATProto
 
-makedocs(
-    sitename = "ATProto",
-    format = Documenter.HTML(),
-    modules = [ATProto]
+DocMeta.setdocmeta!(
+    ATProto,
+    :DocTestSetup,
+    :(using ATProto, ATProto.Syntax, ATProto.API, ATProto.Identity, ATProto.Client, ATProto.RichText, ATProto.Jetstream);
+    recursive = true,
 )
 
-# Documenter can also automatically deploy documentation to gh-pages.
-# See "Hosting Documentation" and deploydocs() in the Documenter manual
-# for more information.
-#=deploydocs(
-    repo = "<repository url>"
-)=#
+makedocs(
+    sitename = "ATProto.jl",
+    format = Documenter.HTML(
+        prettyurls = get(ENV, "CI", nothing) == "true",
+        edit_link = "main",
+    ),
+    modules = [ATProto, ATProto.Syntax, ATProto.API, ATProto.Identity, ATProto.Client, ATProto.RichText, ATProto.Jetstream],
+    checkdocs = :exports,
+    doctest = true,
+    pages = [
+        "Home" => "index.md",
+        "Syntax Primitives" => "syntax.md",
+        "Identity Resolution" => "identity.md",
+        "XRPC Client & Pagination" => "client.md",
+        "RichText & Facets" => "richtext.md",
+        "Jetstream Streaming" => "jetstream.md",
+        "Lexicon API & Codegen" => "api.md",
+    ],
+)
+
+# deploydocs(
+#     repo = "github.com/BradleyDowling/ATProto.jl.git",
+#     devbranch = "main",
+# )
