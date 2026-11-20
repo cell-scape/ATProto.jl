@@ -1,6 +1,6 @@
 using Test
 using ATProto
-using ATProto.DID
+using ATProto.PLC
 using ATProto.Crypto
 using HTTP
 using JSON
@@ -119,7 +119,7 @@ end
     fetch404 = make_fetch()
     cache2 = DidMemoryCache(; now = () -> t[])
     r404 = DidResolver(; fetch = fetch404, cache = cache2)
-    cache_did!(cache2, PLC_DID, parse_did_document(PLC_DID, FIXTURE_DOC))
+    cache_did!(cache2, PLC_DID, PLC.parse_did_document(PLC_DID, FIXTURE_DOC))
     @test resolve_document(r404, PLC_DID; force_refresh = true) === nothing
     @test check_cache(cache2, PLC_DID) === nothing
 end

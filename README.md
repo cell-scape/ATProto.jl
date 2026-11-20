@@ -1,198 +1,86 @@
 # ATProto.jl
 
-[![Build Status](https://github.com/cell-scape/ATProto.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/cell-scape/ATProto.jl/actions/workflows/CI.yml?query=branch%3Amain)
+AT Protocol (Bluesky) SDK for Julia.
 
-A feature-complete [AT Protocol](https://atproto.com) SDK for Julia — the decentralized social protocol powering [Bluesky](https://bsky.app).
+## Features
 
-Ported from the reference [TypeScript](https://github.com/bluesky-social/atproto) and [Go](https://github.com/bluesky-network/indigo) implementations maintained by the Bluesky team, together with community implementations. **~13,000 lines of Julia, 1,516 tests** (including property-based tests via [Supposition.jl](https://github.com/Seelengrab/Supposition.jl)).
+- **Strict, zero-allocation Syntax primitives (`ATProto.Syntax`)**: validated immutable value types (`Handle`, `DID`, `NSID`, `RecordKey`, `TID`, `ATDateTime`, `AtUri`, BCP-47 languages), `Base.parse`/`tryparse`, compile-time string macros (`handle"..."`, `did"..."`, `nsid"..."`, `rkey"..."`, `tid"..."`, `at"..."`), and `JSON.jl` v1 / `StructUtils.jl` integration.
+- **Cryptography, CIDs & DAG-CBOR (`ATProto.Crypto`, `ATProto.DagCbor`)**: varints, multibase encodings, SHA-256 & RIPEMD-160, CIDv1, `did:key` multikeys, ECDSA (`P-256` & `secp256k1`) signing/verification/recovery via `OpenSSL_jll`, and canonical IPLD DAG-CBOR serialization.
+- **Repositories, MST & CAR Archives (`ATProto.Repo`)**: deterministic Merkle Search Trees (`MST`), block stores, MST diffs, CAR v1/v2 archive reader & writer, and signed v3 commit verification.
+- **Generated Lexicon API & Runtime Validation (`ATProto.API`, `ATProto.Lexicon`)**: ahead-of-time code generator ([`scripts/generate_lexicons.jl`](scripts/generate_lexicons.jl)) producing typed structs, `$type` open-union dispatch (`UnknownObject` fallback), IPLD primitives (`CIDLink`, `ATBytes`, `BlobRef`), 193 XRPC endpoint specs, plus runtime Lexicon schema document parsing and record/XRPC payload validators.
+- **Identity & PLC Verification (`ATProto.Identity`, `ATProto.PLC`)**: standalone `did:plc` (`plc.directory`) and `did:web` (`/.well-known/did.json`) resolution, PLC operation log & genesis verification, DNS TXT (DoH) + HTTPS handle resolution, bidirectional verification (`verify_handle`, `resolve_identity`), and TTL caching.
+- **XRPC Client, OAuth 2.1 & Social Helpers (`ATProto.Client`, `ATProto.OAuth`)**: `AtpAgent` with JWT and OAuth 2.1 (PKCE + DPoP RFC 9449 + PAR + inter-service JWT auth) sessions, automatic PDS routing from `didDoc`, single-flight token refresh, rate-limit tracking, `atproto-proxy` / `atproto-accept-labelers` / chat views, lazy cursor pagination (`eachpage`, `eachitem`), and ergonomic social/chat/notification helpers.
+- **RichText & Facets (`ATProto.RichText`)**: exact 0-based UTF-8 byte-offset facet detection (mentions, links with balanced-paren handling, Unicode hashtags), `AtpAgent`-backed deduplicated handle resolution, `RichTextBuilder` / `RichTextDoc` `do`-block builder, grapheme counting, and segment rendering (`segments`).
+- **Jetstream WebSocket Streaming (`ATProto.Jetstream`)**: real-time Bluesky JSON firehose consumer backed by `Channel{JetstreamEvent}`, with typed commit/identity/account events, optional Zstandard compression (`Zstd_jll`), cursor checkpointing, live `options_update`, and automatic reconnect with cursor rewind.
 
 ## Quickstart
 
 ```julia
 using ATProto
 
-# Unauthenticated client — read public data
-agent = Agent(; service = "https://bsky.social")
+# Unauthenticated public queries & lazy pagination
+pub = AtpAgent(PUBLIC_APPVIEW)
+profile = get_profile(pub, handle"bsky.app")
+posts = collect(Iterators.take(
+    eachitem(pub, API.App.Bsky.Feed.GetAuthorFeed; actor=handle"bsky.app", limit=25),
+    50,
+))
 
-# Any of the 325 generated XRPC endpoints:
-profile = ATProto.API.app.bsky.actor.get_profile(agent; actor = "bsky.app")
+# Authenticated PDS session
+agent = AtpAgent()
+login!(agent, "you.bsky.social", ENV["BSKY_APP_PASSWORD"])
+post!(agent, "Hello from ATProto.jl!"; langs=["en"])
 
-# Search posts
-results = ATProto.API.app.bsky.feed.search_posts(agent; q = "julia lang")
-```
-
-### Login and post
-
-```julia
-using ATProto
-
-agent = Agent(; service = "https://bsky.social")
-session = login(agent, "alice.bsky.social", "your-app-password")
-
-# Create a post
-post = create_post(session, "Hello from Julia! 🎉")
-
-# With facets (mentions, links, tags auto-detected)
-using ATProto.RichText
-rt = ATProto.RichText.RichText("Check out @bsky.app and https://julialang.org!")
-detect_facets_without_resolution!(rt)
-post = create_post(session, string(rt); facets = rt.facets)
-
-# Upload a blob
-blob = upload_blob(session, read("photo.png"), "image/png")
-
-# Delete
-delete_post(session, "3jzfcijpj2z2a")
-```
-
-### Identity resolution
-
-```julia
-using ATProto
-
-# Server-side (PDS): fast, cached
-did = resolve_handle(agent, "alice.bsky.social")
-
-# Local: DNS TXT + HTTPS well-known, fully offline-capable
-resolver = IdResolver(; timeout = 5.0)
-verified_did = resolve_identity(resolver, "alice.example.com")
-```
-
-### Rich text
-
-```julia
-using ATProto.RichText
-
-rt = ATProto.RichText.RichText("hello @alice.bsky.social #julia https://julialang.org")
-detect_facets_without_resolution!(rt)
-
-for seg in segments(rt)
-    if is_mention(seg)
-        println("mention: ", seg.text)
-    elseif is_link(seg)
-        println("link: ", seg.text)
-    elseif is_tag(seg)
-        println("tag: ", seg.text)
-    end
-end
-```
-
-### OAuth (DPoP)
-
-```julia
-using ATProto.OAuth
-
-meta = OAuthClientMetadata(;
-    client_id = "https://app.example.com/client-metadata.json",
-    redirect_uris = ["https://app.example.com/callback"])
-
-# Generate PKCE + DPoP key
-pkce = generate_pkce()
-dpop_key = generate_dpop_key()
-
-# Build the authorization URL
-auth_url = build_authorization_url(
-    "https://bsky.social/oauth/authorize",
-    meta.client_id, "https://app.example.com/callback";
-    code_challenge = pkce.challenge,
-    state = generate_nonce())
-
-# ... user visits auth_url, gets redirected back with ?code=...&state=...
-
-# Exchange the code for tokens (DPoP-bound)
-tokens = exchange_code(
-    "https://bsky.social/oauth/token",
-    meta.client_id, "https://app.example.com/callback",
-    auth_code, pkce.verifier; dpop_key = dpop_key)
-
-# Make DPoP-bound requests
-session = OAuthSession(;
-    client_id = meta.client_id,
-    token_endpoint = "https://bsky.social/oauth/token",
-    dpop_key = dpop_key,
-    access_token = tokens["access_token"],
-    refresh_token = get(tokens, "refresh_token", nothing))
-
-res = oauth_request(session, "GET",
-    "https://bsky.social/xrpc/app.bsky.feed.getTimeline")
-```
-
-### Firehose / Jetstream
-
-```julia
-using ATProto.Jetstream
-
-jetstream_subscribe("https://jetstream.bsky.social/subscribe";
-    wanted_collections = ["app.bsky.feed.post"]) do event
-    if event["kind"] == "commit"
-        commit = event["commit"]
-        if commit["operation"] == "create"
-            println("new post: ", commit["collection"], "/", commit["rkey"])
+# Real-time Jetstream firehose
+subscribe_jetstream(wanted_collections=["app.bsky.feed.post"]) do stream
+    for ev in Iterators.take(stream, 10)
+        if ev isa JetstreamCommitEvent && ev.record isa API.AppBskyFeedPost
+            println(ev.did, ": ", ev.record.text)
         end
     end
 end
 ```
 
-### Low-level: MST, CAR, DAG-CBOR
+## Examples & Documentation
 
-```julia
-using ATProto.Repo
+- Runnable examples live in [`examples/`](examples/README.md):
+  - [`examples/tui/bluesky_tui.jl`](examples/tui/bluesky_tui.jl) — interactive 6-tab retro-CRT Bluesky TUI viewer built with `Tachikoma.jl` (Feed/Timeline/Saved Feeds/Bookmarks, Thread tree, Profile + verified DID card + Follow/Mute, Notifications `DEC-LA120`, Chat DMs `TTY-DM300` via `with_proxy`, live Jetstream firehose + Sparkline, Image/Alt-Text gallery, quote-posts, likes/reposts)
+  - [`examples/bluesky_cli.jl`](examples/bluesky_cli.jl) — full Bluesky CLI (`profile`, `feed`, `thread`, `firehose`, `post --dry-run`)
+  - [`examples/jetstream_monitor.jl`](examples/jetstream_monitor.jl) — real-time Jetstream throughput & hashtag counter
+  - [`examples/richtext_renderer.jl`](examples/richtext_renderer.jl) — RichText builder & HTML/Markdown renderer
+- Documentation source (Getting Started, Tutorial, and API Reference) lives in [`docs/`](docs/src/index.md); build locally with:
+  ```bash
+  julia --project=docs -e 'push!(LOAD_PATH, pwd()); include("docs/make.jl")'
+  ```
 
-# Build a Merkle Search Tree
-store = MemoryBlockStore()
-tree = mst_create(store)
-tree = mst_add(tree, "com.example.post/3jzfcijpj2z2a", cid_for_dagcbor("record bytes"))
+## Development
 
-# The root CID is deterministic (insert-order independent)
-root = mst_pointer(tree)
-
-# Export to a CAR file
-unstored = mst_get_unstored_blocks(tree)
-put_blocks!(store, unstored.blocks)
-car_bytes = write_car(CID[root], unstored.blocks)
-
-# Sign a commit
-key = generate_key(Secp256k1Key)
-(commit_cid, commit_bytes) = create_commit(store, root, "did:plc:abc",
-    "3jzfcijpj2z2a"; signing_key = key)
+### Regenerate Lexicon Types
+```bash
+julia --project=. scripts/generate_lexicons.jl
 ```
 
-## Modules
-
-| Module | Description |
-|---|---|
-| `ATProto.Syntax` | DID, handle, NSID, TID, record-key, AT-URI, datetime, BCP 47 language validation |
-| `ATProto.Crypto` | Multibase, CID, SHA-256, RIPEMD-160, secp256k1/P-256 ECDSA (via OpenSSL), did:key, public-key recovery |
-| `ATProto.DagCbor` | Canonical DAG-CBOR encode/decode with CID tag-42, strict mode |
-| `ATProto.DID` | DID document parsing, did:plc/did:web resolvers, plc.directory client, PLC operation verification |
-| `ATProto.Identity` | Handle resolution (DNS TXT + HTTPS well-known), bidirectional identity verification |
-| `ATProto.XRPC` | XRPC client with lexicon JSON serialization, authenticated sessions, WebSocket subscriptions |
-| `ATProto.Lexicon` | Lexicon document parsing/validation, value validation (records, params, unions, blobs) |
-| `ATProto.Repo` | Merkle Search Tree, CAR archives, commit signing/verification, diffs |
-| `ATProto.API` | Generated client for all 325 official XRPC endpoints, Agent/SessionAgent, record conveniences |
-| `ATProto.RichText` | Facet detection (mentions, links, tags, cashtags), insert/delete with index adjustment |
-| `ATProto.OAuth` | PKCE, DPoP proofs (RFC 9449), ES256/ES256K JWTs, client metadata, token exchange |
-| `ATProto.Jetstream` | Firehose event types, frame parsing, WebSocket subscriber with reconnect |
-
-## Testing
-
-The test suite uses [Supposition.jl](https://github.com/Seelengrab/Supposition.jl) (the Julia Hypothesis port) for property-based testing of core invariants:
-
-- **MST determinism**: insert-order independence, delete-matches-fresh-build, add-delete roundtrip
-- **Codec round-trips**: base16/32/58/64, multibase, varint, CID
-- **DAG-CBOR**: decode∘encode identity over generated value trees
-
-Example suites cover the full API surface with cross-implementation fixtures (generated from `multiformats`/`@noble`/`@ipld` — the TypeScript reference's own dependencies).
-
+### Run Tests (ParallelTestRunner + Aqua + JET + AllocCheck + Supposition)
 ```bash
 julia --project=. -e 'using Pkg; Pkg.test()'
 ```
+Run a subset of test files via `ParallelTestRunner`:
+```bash
+julia --project=test test/runtests.jl test_syntax richtext_tests alloc_tests
+```
 
-## Requirements
+### Run Benchmarks & Profiling (Chairmarks, PkgBenchmark, PProf & SnoopCompile)
+Fast microbenchmark table with Chairmarks.jl:
+```bash
+julia --project=benchmark benchmark/chairmarks.jl
+```
 
-- Julia ≥ 1.10
-- OpenSSL (for ECDSA; provided by `OpenSSL_jll`)
+CPU/allocation PProf profiles, TimerOutputs breakdown, and SnoopCompile invalidation audit:
+```bash
+julia --project=benchmark benchmark/profile.jl
+```
 
-## License
-
-MIT
+Full suite / git regression judgement with PkgBenchmark.jl:
+```bash
+julia --project=benchmark -e 'using PkgBenchmark; println(export_markdown(benchmarkpkg(pwd())))'
+```

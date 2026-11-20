@@ -1,6 +1,6 @@
 using Test
 using ATProto
-using ATProto.DID
+using ATProto.PLC
 using ATProto.Crypto
 using JSON
 
@@ -42,7 +42,7 @@ const PLC_DOC = JSON.parse("""
 """)
 
 @testset "DID document parsing" begin
-    doc = parse_did_document(PLC_DID, PLC_DOC)
+    doc = PLC.parse_did_document(PLC_DID, PLC_DOC)
     @test get_did(doc) == PLC_DID
     @test get_handle(doc) == "handle.example.com"
     @test get_signing_key(doc) == SIGNING_DID_KEY
@@ -58,7 +58,7 @@ const PLC_DOC = JSON.parse("""
     @test data.pds == "https://pds.example.com"
 
     # parse from raw JSON bytes
-    doc2 = parse_did_document(PLC_DID, Vector{UInt8}(codeunits(JSON.json(PLC_DOC))))
+    doc2 = PLC.parse_did_document(PLC_DID, Vector{UInt8}(codeunits(JSON.json(PLC_DOC))))
     @test get_pds_endpoint(doc2) == "https://pds.example.com"
 end
 
@@ -66,10 +66,10 @@ end
     # id mismatch
     bad = Dict{String,Any}(copy(PLC_DOC))
     bad["id"] = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"
-    @test_throws ATProtoDidError parse_did_document(PLC_DID, bad)
+    @test_throws ATProtoDidError PLC.parse_did_document(PLC_DID, bad)
 
     # missing id
-    @test_throws ArgumentError parse_did_document(PLC_DID, Dict{String,Any}())
+    @test_throws ArgumentError PLC.parse_did_document(PLC_DID, Dict{String,Any}())
 
     # duplicate service ids
     dup = Dict{String,Any}(copy(PLC_DOC))
@@ -77,12 +77,12 @@ end
         Dict("id" => "#atproto_pds", "type" => "T", "serviceEndpoint" => "https://a"),
         Dict("id" => "did:plc:ewvi7nx4oun5hl7s6yqkgcto#atproto_pds", "type" => "T", "serviceEndpoint" => "https://b"),
     ]
-    @test_throws ArgumentError parse_did_document(PLC_DID, dup)
+    @test_throws ArgumentError PLC.parse_did_document(PLC_DID, dup)
 
     # malformed service
     badsvc = Dict{String,Any}(copy(PLC_DOC))
     badsvc["service"] = [Dict("id" => "#x")]
-    @test_throws ArgumentError parse_did_document(PLC_DID, badsvc)
+    @test_throws ArgumentError PLC.parse_did_document(PLC_DID, badsvc)
 end
 
 @testset "atproto data extraction edge cases" begin
@@ -92,7 +92,7 @@ end
         "verificationMethod" => PLC_DOC["verificationMethod"],
         "service" => PLC_DOC["service"],
     )
-    doc = parse_did_document(PLC_DID, minimal)
+    doc = PLC.parse_did_document(PLC_DID, minimal)
     @test get_handle(doc) === nothing
     @test_throws ArgumentError ensure_atproto_data(doc)  # missing handle
 
@@ -109,6 +109,6 @@ end
         )],
         "service" => PLC_DOC["service"],
     )
-    doc2 = parse_did_document(PLC_DID, legacy)
+    doc2 = PLC.parse_did_document(PLC_DID, legacy)
     @test get_signing_key(doc2) == did_key(key)
 end

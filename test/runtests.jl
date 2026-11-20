@@ -1,18 +1,32 @@
 using ATProto
 using ParallelTestRunner
-using Supposition
-using Test
 
-# Property-based suites run in this process (Supposition reports don't
-# survive ParallelTestRunner's worker serialization); excluded below.
-@testset "property tests" begin
-    include("test_prop_codecs.jl")
-    include("test_prop_mst.jl")
+const _PKG_ROOT = dirname(@__DIR__)
+
+const init_worker_code = quote
+    if !($(_PKG_ROOT) in LOAD_PATH)
+        push!(LOAD_PATH, $(_PKG_ROOT))
+    end
 end
 
-tests = find_tests(joinpath(pkgdir(ATProto), "test"))
-for name in collect(keys(tests))
-    startswith(name, "test_prop_") && delete!(tests, name)
+const init_code = quote
+    using ATProto
+    using ATProto.Syntax
+    using ATProto.Crypto
+    using ATProto.DagCbor
+    using ATProto.API
+    using ATProto.Identity
+    using ATProto.Repo
+    using ATProto.Client
+    using ATProto.RichText
+    using ATProto.OAuth
+    using ATProto.Jetstream
+    using Test
 end
 
-runtests(ATProto, ARGS; testsuite = tests)
+args = parse_args(ARGS)
+testsuite = find_tests(@__DIR__)
+for k in collect(keys(testsuite))
+    startswith(k, "fixtures/") && delete!(testsuite, k)
+end
+runtests(ATProto, args; testsuite, init_worker_code, init_code)

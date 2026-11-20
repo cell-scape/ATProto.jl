@@ -128,3 +128,19 @@ end
     doc = Dict("list" => Any[cid, Dict("inner" => cid)])
     @test dag_cbor_decode(dag_cbor_encode(doc)) == doc
 end
+
+
+@testset "API interop (ATBytes & CIDLink)" begin
+    raw = UInt8[0xde, 0xad, 0xbe, 0xef]
+    atb = ATBytes(raw)
+    db = DagBytes(atb)
+    @test db.bytes == raw
+    @test ATBytes(db) == atb
+    @test dag_cbor_encode(atb) == dag_cbor_encode(db)
+
+    c = cid_for_dagcbor(raw)
+    link = CIDLink(c)
+    @test link.link == string(c)
+    @test CID(link) == c
+    @test dag_cbor_encode(link) == dag_cbor_encode(c)
+end

@@ -7,6 +7,34 @@ using ATProto.Repo
 
 using Supposition: Data
 
+function _with_isolated_testset(f::Function)
+    ts = Test.DefaultTestSet("supposition")
+    @static if isdefined(Test, :CURRENT_TESTSET)
+        Base.ScopedValues.@with Test.CURRENT_TESTSET => ts begin
+            f()
+        end
+    else
+        Test.push_testset(ts)
+        try
+            f()
+        finally
+            Test.pop_testset()
+        end
+    end
+    return ts
+end
+
+macro _pcheck(args...)
+    chk = Expr(:macrocall, GlobalRef(Supposition, Symbol("@check")), __source__, :(db = false), args...)
+    return quote
+        let _ts = _with_isolated_testset(() -> $(esc(chk)))
+            _ok = !Test.anynonpass(_ts)
+            _ok || @error sprint(Test.print_test_results, _ts)
+            @test _ok
+        end
+    end
+end
+
 # valid rkey suffixes: alphanumeric
 const rkeys = Data.map(String, Data.Text(Data.SampledFrom([Char('a'):Char('z'); Char('2'):Char('7')]);
                                          min_len = 1, max_len = 8))
@@ -25,7 +53,7 @@ end
 
 @testset "property: MST determinism" begin
     # THE core MST guarantee: the root CID is independent of insertion order
-    @check function insert_order_independence(keys = Data.Vectors(mst_keys;
+    @_pcheck function insert_order_independence(keys = Data.Vectors(mst_keys;
                                                                   min_size = 1, max_size = 20))
         unique_keys = unique(keys)
         store_a = MemoryBlockStore()
@@ -36,7 +64,7 @@ end
     end
 
     # duplicate insertions in the stream don't matter (first wins)
-    @check function duplicates_rejected_consistently(keys = Data.Vectors(mst_keys;
+    @_pcheck function duplicates_rejected_consistently(keys = Data.Vectors(mst_keys;
                                                                          min_size = 1, max_size = 8))
         unique_keys = unique(keys)
         tree = build_mst(MemoryBlockStore(), unique_keys)
@@ -52,21 +80,21 @@ end
 end
 
 @testset "property: MST CRUD invariants" begin
-    @check function get_after_add(keys = Data.Vectors(mst_keys; min_size = 1, max_size = 20))
+    @_pcheck function get_after_add(keys = Data.Vectors(mst_keys; min_size = 1, max_size = 20))
         unique_keys = unique(keys)
         tree = build_mst(MemoryBlockStore(), unique_keys)
         all(k -> mst_get(tree, k) == cid1, unique_keys) &&
         mst_get(tree, "com.example.record/zzzzzznotthere") === nothing
     end
 
-    @check function leaves_are_sorted(keys = Data.Vectors(mst_keys; min_size = 1, max_size = 20))
+    @_pcheck function leaves_are_sorted(keys = Data.Vectors(mst_keys; min_size = 1, max_size = 20))
         unique_keys = unique(keys)
         tree = build_mst(MemoryBlockStore(), unique_keys)
         ks = [l.key for l in mst_leaves(tree)]
         ks == sort(ks) && Set(ks) == Set(unique_keys)
     end
 
-    @check function update_only_changes_that_key(keys = Data.Vectors(mst_keys;
+    @_pcheck function update_only_changes_that_key(keys = Data.Vectors(mst_keys;
                                                                      min_size = 2, max_size = 12),
                                                  newval_bytes = Data.Vectors(Data.Integers(0x00, 0xff);
                                                                                             min_size = 1,
@@ -84,7 +112,7 @@ end
 
 @testset "property: MST delete invariants" begin
     # deleting a key yields the same tree as never having added it
-    @check function delete_matches_fresh_build(keys = Data.Vectors(mst_keys;
+    @_pcheck function delete_matches_fresh_build(keys = Data.Vectors(mst_keys;
                                                                    min_size = 2, max_size = 15))
         unique_keys = unique(keys)
         length(unique_keys) >= 2 || return true
@@ -96,7 +124,7 @@ end
     end
 
     # add-then-delete returns the original root
-    @check function add_delete_roundtrip(keys = Data.Vectors(mst_keys;
+    @_pcheck function add_delete_roundtrip(keys = Data.Vectors(mst_keys;
                                                              min_size = 1, max_size = 12),
                                          extra = rkeys)
         unique_keys = unique(keys)
@@ -110,12 +138,12 @@ end
 end
 
 @testset "property: MST diff invariants" begin
-    @check function diff_self_empty(keys = Data.Vectors(mst_keys; min_size = 0, max_size = 15))
+    @_pcheck function diff_self_empty(keys = Data.Vectors(mst_keys; min_size = 0, max_size = 15))
         tree = build_mst(MemoryBlockStore(), unique(keys))
         isempty(mst_diff(tree, tree))
     end
 
-    @check function diff_counts_add_delete(keys = Data.Vectors(mst_keys;
+    @_pcheck function diff_counts_add_delete(keys = Data.Vectors(mst_keys;
                                                                min_size = 1, max_size = 12),
                                            extra = rkeys)
         unique_keys = unique(keys)
@@ -131,7 +159,7 @@ end
 end
 
 @testset "property: CAR round trip" begin
-    @check function car_roundtrip(keys = Data.Vectors(mst_keys; min_size = 1, max_size = 12))
+    @_pcheck function car_roundtrip(keys = Data.Vectors(mst_keys; min_size = 1, max_size = 12))
         unique_keys = unique(keys)
         store = MemoryBlockStore()
         tree = build_mst(store, unique_keys)

@@ -3,11 +3,10 @@ using ATProto
 using ATProto.Lexicon
 using ATProto.Crypto
 using ATProto.DagCbor
-using ATProto.XRPC: parse_lex
 using JSON
 
 # A small lexicon exercising most validator paths
-const TEST_LEXICON = parse_lex("""
+const TEST_LEXICON = JSON.parse("""
 {
   "lexicon": 1,
   "id": "com.example.post",
@@ -46,7 +45,7 @@ const TEST_LEXICON = parse_lex("""
 }
 """)
 
-const STRONG_REF_LEXICON = parse_lex("""
+const STRONG_REF_LEXICON = JSON.parse("""
 {
   "lexicon": 1,
   "id": "com.atproto.repo.strongRef",
@@ -106,7 +105,7 @@ end
         "subject" => Dict("\$type" => "com.atproto.repo.strongRef",
                           "uri" => "at://did:plc:abc/com.example.post/3jzfcijpj2z2a",
                           "cid" => string(cid)),
-        "attachment" => BlobRef(cid, "image/png", 1000),
+        "attachment" => Lexicon.BlobRef(cid, "image/png", 1000),
         "replyTo" => nothing,  # nullable
     )
     validated = assert_valid_record(lexicons, main_def, good)
@@ -196,7 +195,7 @@ end
     union_def = Dict{String,Any}("type" => "union",
                                  "refs" => ["com.atproto.repo.strongRef"])
     val = Dict("\$type" => "com.atproto.repo.strongRef",
-               "uri" => "at://did:plc:abc/x/1", "cid" => string(cid_for_dagcbor("x")))
+               "uri" => "at://did:plc:abc/com.example.x/1", "cid" => string(cid_for_dagcbor("x")))
     ok, v, err = validate_lex_ref_variant(lexicons, "u", union_def, val)
     @test ok
 
@@ -223,7 +222,7 @@ end
 end
 
 @testset "xrpc params validation" begin
-    qdef = parse_lex("""
+    qdef = JSON.parse("""
     {"lexicon": 1, "id": "com.example.search",
      "defs": {"main": {"type": "query",
        "parameters": {"type": "params", "required": ["q"],
@@ -251,7 +250,7 @@ end
 
 @testset "BlobRef" begin
     cid = cid_for_dagcbor("blobdata")
-    br = BlobRef(cid, "image/jpeg", 2048)
+    br = Lexicon.BlobRef(cid, "image/jpeg", 2048)
     @test br.ref == cid
     @test br.mime_type == "image/jpeg"
     @test br.size == 2048
@@ -297,6 +296,21 @@ function _collect_refs!(missing, lexicons::Lexicons, nsid, def)
             _collect_refs!(missing, lexicons, nsid, v)
         end
     end
+end
+
+@testset "bundled lexicons corpus" begin
+    bundled = load_bundled_lexicons()
+    @test length(bundled.docs) >= 230
+    post_def = get_def(bundled, "app.bsky.feed.post")
+    @test post_def !== nothing
+    @test post_def["type"] == "record"
+    @test "text" in post_def["record"]["required"]
+    valid_post = Dict{String, Any}(
+        "\$type" => "app.bsky.feed.post",
+        "text" => "Hello bundled lexicons!",
+        "createdAt" => "2026-11-20T00:00:00.000Z",
+    )
+    @test assert_valid_record(bundled, post_def, valid_post)["text"] == "Hello bundled lexicons!"
 end
 
 @testset "official lexicons parse" begin

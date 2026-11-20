@@ -1,6 +1,6 @@
 using Test
 using ATProto
-using ATProto.DID
+using ATProto.PLC
 
 @testset "did:plc validation" begin
     @test is_did_plc("did:plc:ewvi7nx4oun5hl7s6yqkgcto")

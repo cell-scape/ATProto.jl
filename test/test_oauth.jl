@@ -211,5 +211,146 @@ end
     res = oauth_request(session, "GET", "https://pds.example.com/xrpc/com.atproto.server.getSession")
     @test res.status == 200
     @test request_count[] == 2  # retried with nonce
-    @test JSON.parse(String(copy(res.body)))["ok"] == true
+    @test JSON.parse(res.body isa String ? res.body : String(copy(res.body)))["ok"] == true
+end
+
+@testset "RFC 7638 JWK thumbprint canonical JSON" begin
+    key = generate_key(P256Key)
+    jwk = jwk_public_key(key)
+    expected_json = "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"$(jwk["x"])\",\"y\":\"$(jwk["y"])\"}"
+    @test jwk_thumbprint(jwk) == base64url_encode(sha256(expected_json))
+end
+
+@testset "OAuth 2.1 Discovery, PAR, DPoP-Nonce retry & AtpAgent integration" begin
+    par_attempts = Ref(0)
+    token_attempts = Ref(0)
+    fetch_fn = function (method, url, headers, body; timeout = 30.0)
+        if endswith(url, "/.well-known/oauth-protected-resource")
+            return HTTP.Response(200, ["Content-Type" => "application/json"],
+                Vector{UInt8}(codeunits("""{"resource":"https://pds.example","authorization_servers":["https://auth.example"]}""")))
+        elseif endswith(url, "/.well-known/oauth-authorization-server")
+            return HTTP.Response(200, ["Content-Type" => "application/json"],
+                Vector{UInt8}(codeunits("""{"issuer":"https://auth.example","authorization_endpoint":"https://auth.example/oauth/authorize","token_endpoint":"https://auth.example/oauth/token","pushed_authorization_request_endpoint":"https://auth.example/oauth/par"}""")))
+        elseif endswith(url, "/oauth/par")
+            par_attempts[] += 1
+            if par_attempts[] == 1
+                return HTTP.Response(400, ["Content-Type" => "application/json", "DPoP-Nonce" => "par-nonce-1"],
+                    Vector{UInt8}(codeunits("""{"error":"use_dpop_nonce"}""")))
+            end
+            return HTTP.Response(201, ["Content-Type" => "application/json"],
+                Vector{UInt8}(codeunits("""{"request_uri":"urn:ietf:params:oauth:request_uri:req-99","expires_in":90}""")))
+        elseif endswith(url, "/oauth/token")
+            token_attempts[] += 1
+            if token_attempts[] == 1
+                return HTTP.Response(400, ["Content-Type" => "application/json", "DPoP-Nonce" => "tok-nonce-1"],
+                    Vector{UInt8}(codeunits("""{"error":"use_dpop_nonce"}""")))
+            end
+            return HTTP.Response(200, ["Content-Type" => "application/json"],
+                Vector{UInt8}(codeunits("""{"access_token":"oauth-at-1","refresh_token":"oauth-rt-1","token_type":"DPoP","sub":"did:plc:z72i7hdynmk6r22z27h6tvur"}""")))
+        elseif occursin("/xrpc/app.bsky.actor.getProfile", url)
+            has_dpop = any(lowercase(k) == "dpop" for (k, _) in headers)
+            has_auth = any(lowercase(k) == "authorization" && startswith(v, "DPoP ") for (k, v) in headers)
+            (has_dpop && has_auth) || return HTTP.Response(401)
+            return HTTP.Response(200, ["Content-Type" => "application/json"],
+                Vector{UInt8}(codeunits("""{"did":"did:plc:z72i7hdynmk6r22z27h6tvur","handle":"bsky.app"}""")))
+        end
+        return HTTP.Response(404)
+    end
+
+    meta = discover_authorization_server("https://pds.example"; fetch = fetch_fn)
+    @test meta["issuer"] == "https://auth.example"
+
+    pkce = generate_pkce()
+    dpop_key = generate_dpop_key()
+    par = pushed_authorization_request(
+        meta["pushed_authorization_request_endpoint"],
+        "https://app.example/client-metadata.json",
+        "https://app.example/callback";
+        code_challenge = pkce.challenge,
+        state = "st-1",
+        dpop_key = dpop_key,
+        fetch = fetch_fn,
+    )
+    @test par_attempts[] == 2
+    @test par["request_uri"] == "urn:ietf:params:oauth:request_uri:req-99"
+
+    auth_url = build_par_authorization_url(meta["authorization_endpoint"], "https://app.example/client-metadata.json", par["request_uri"])
+    @test occursin("request_uri=urn%3Aietf%3Aparams%3Aoauth%3Arequest_uri%3Areq-99", auth_url)
+
+    toks = exchange_code(
+        meta["token_endpoint"],
+        "https://app.example/client-metadata.json",
+        "https://app.example/callback",
+        "code-abc",
+        pkce.verifier;
+        dpop_key = dpop_key,
+        fetch = fetch_fn,
+    )
+    @test token_attempts[] == 2
+    @test toks["access_token"] == "oauth-at-1"
+
+    oauth_sess = OAuthSession(;
+        client_id = "https://app.example/client-metadata.json",
+        token_endpoint = meta["token_endpoint"],
+        dpop_key = dpop_key,
+        access_token = toks["access_token"],
+        refresh_token = toks["refresh_token"],
+        did = toks["sub"],
+        fetch = fetch_fn,
+    )
+    agent = AtpAgent(oauth_sess, "https://pds.example")
+    prof = get_profile(agent, handle"bsky.app")
+    @test prof.handle == handle"bsky.app"
+end
+
+@testset "Service Auth JWT creation & verification" begin
+    iss = did"did:plc:z72i7hdynmk6r22z27h6tvur"
+    aud = "did:web:feed.example.com"
+    now_i = 1_800_000_000
+
+    for K in (Secp256k1Key, P256Key)
+        key = generate_key(K)
+        dk = did_key(key)
+        tok = create_service_jwt(iss, aud, key; lxm = nsid"app.bsky.feed.getFeedSkeleton", iat = now_i, exp = now_i + 60)
+        claims = verify_service_jwt(
+            tok;
+            aud = aud,
+            lxm = "app.bsky.feed.getFeedSkeleton",
+            resolve_key = _ -> dk,
+            now_ts = now_i + 10,
+        )
+        @test claims.iss == iss
+        @test claims.aud == aud
+        @test claims.lxm == nsid"app.bsky.feed.getFeedSkeleton"
+        @test claims.exp == now_i + 60
+
+        # Expired token fails
+        @test_throws ServiceAuthError verify_service_jwt(tok; aud = aud, resolve_key = _ -> dk, now_ts = now_i + 120)
+        # Wrong audience fails
+        @test_throws ServiceAuthError verify_service_jwt(tok; aud = "did:web:other.example", resolve_key = _ -> dk, now_ts = now_i + 10)
+        # Wrong lxm fails
+        @test_throws ServiceAuthError verify_service_jwt(tok; aud = aud, lxm = "app.bsky.actor.getProfile", resolve_key = _ -> dk, now_ts = now_i + 10)
+        # Wrong signing key fails
+        other_dk = did_key(generate_key(K))
+        @test_throws ServiceAuthError verify_service_jwt(tok; aud = aud, resolve_key = _ -> other_dk, now_ts = now_i + 10)
+    end
+
+    # End-to-end verification via IdentityResolver DIDDocument lookup
+    key = generate_key(Secp256k1Key)
+    multikey = format_multikey(jwt_alg(key), public_key_bytes(key))
+    did_doc_json = JSON.json(Dict(
+        "id" => String(iss),
+        "verificationMethod" => [Dict(
+            "id" => "$(iss)#atproto",
+            "type" => "Multikey",
+            "controller" => String(iss),
+            "publicKeyMultibase" => multikey,
+        )],
+    ))
+    resolver = ATProto.Identity.IdentityResolver(
+        http_transport = (url, headers; timeout) -> HTTP.Response(200, ["Content-Type" => "application/json"], Vector{UInt8}(codeunits(did_doc_json))),
+    )
+    tok = create_service_jwt(iss, aud, key; iat = now_i, exp = now_i + 60)
+    claims = verify_service_jwt(tok; aud = aud, resolver = resolver, now_ts = now_i + 5)
+    @test claims.iss == iss
 end

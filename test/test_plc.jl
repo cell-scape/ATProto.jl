@@ -1,6 +1,6 @@
 using Test
 using ATProto
-using ATProto.DID
+using ATProto.PLC
 using ATProto.Crypto
 using ATProto.DagCbor
 using HTTP

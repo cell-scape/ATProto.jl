@@ -1,0 +1,21 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Chairmarks = "0ca39b1e-fe0b-4e98-acfc-b1656634c4de"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+PProf = "e4faabce-9ead-11e9-39d9-4379958e3056"
+PkgBenchmark = "32113eaa-f34f-5b0d-bd6c-c81e245fc73d"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Profile = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
+SnoopCompile = "aa65fe97-06da-5843-b5b1-d5d13cad87d2"
+SnoopCompileCore = "e2b509da-e806-4183-be48-004708413034"
+TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
+
+[compat]
+BenchmarkTools = "1"
+Chairmarks = "1"
+JSON = "1"
+PProf = "3"
+PkgBenchmark = "0.2"
+SnoopCompile = "3"
+SnoopCompileCore = "3"
+TimerOutputs = "0.5"

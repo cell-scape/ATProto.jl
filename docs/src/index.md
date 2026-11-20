@@ -1,200 +1,69 @@
-# API Reference
-
 ```@meta
 CurrentModule = ATProto
 ```
 
 # ATProto.jl
 
-A feature-complete AT Protocol SDK for Julia.
+**ATProto.jl** is a Julia SDK for the [AT Protocol](https://atproto.com) (Bluesky),
+providing zero-allocation syntax validation, ahead-of-time generated Lexicon API types,
+standalone DID/handle identity resolution, an authenticated XRPC client with lazy cursor
+pagination, UTF-8 byte-offset RichText facets, and real-time Jetstream WebSocket streaming.
 
-## Overview
+## Architecture Overview
 
-```@docs
-ATProto
+| Module | Responsibility |
+|:-------|:---------------|
+| [Syntax Primitives](@ref) (`ATProto.Syntax`) | Strict ASCII validators, immutable value types (`Handle`, `DID`, `NSID`, `RecordKey`, `TID`, `ATDateTime`, `AtUri`), BCP-47 language tags, compile-time string macros |
+| [Cryptography, CIDs & Multibase](@ref) (`ATProto.Crypto`) | Multibase/varint/multihash, CIDv0/v1, `did:key`, ECDSA (`ES256`/`ES256K`) via OpenSSL, secp256k1 key recovery |
+| [DAG-CBOR Codec](@ref) (`ATProto.DagCbor`) | Strict canonical IPLD DAG-CBOR encode/decode with CID tag 42 and `DagBytes` |
+| [Identity Resolution](@ref) (`ATProto.Identity`) | `did:plc` & `did:web` resolution, DNS TXT (DoH) & HTTPS handle resolution, bidirectional verification, TTL caching |
+| [PLC Directory & DID Verification](@ref) (`ATProto.PLC`) | `plc.directory` audit log client, DID document parsers, genesis/rotation op verification |
+| [Lexicon Schema Validation](@ref) (`ATProto.Lexicon`) | Runtime schema validator over the 237 bundled Lexicon JSON docs (`load_bundled_lexicons`) |
+| [Repositories, MST & CAR Archives](@ref) (`ATProto.Repo`) | Merkle Search Trees (`MST`), CAR v1/v2 import & export, signed v3 repo commits & diffs |
+| [Lexicon API & Code Generation](@ref) (`ATProto.API`) | Generated Lexicon structs (237 schemas, 193 endpoints), `$type` open-union dispatch (`UnknownObject` fallback), IPLD primitives (`CIDLink`, `ATBytes`, `BlobRef`) |
+| [XRPC Client & Pagination](@ref) (`ATProto.Client`) | `AtpAgent`, JWT & OAuth sessions, PDS routing, single-flight refresh, `eachpage`/`eachitem`, social actions (`like!`, `repost!`, `follow!`, `reply!`, `quote_post!`), embeds, notifications, bookmarks, Chat DMs, session persistence |
+| [OAuth 2.1 (PKCE + DPoP + PAR) & Service Auth](@ref) (`ATProto.OAuth`) | OAuth 2.1 metadata discovery, PAR, PKCE, DPoP proofs + nonce retry, `AtpAgent(oauth_session)`, inter-service JWT creation & verification |
+| [RichText & Facets](@ref) (`ATProto.RichText`) | 0-based UTF-8 byte-offset facet detection (mentions, links, hashtags), `RichTextBuilder`, grapheme counting, segment rendering |
+| [Jetstream Streaming](@ref) (`ATProto.Jetstream`) | Real-time `Channel{JetstreamEvent}` WebSocket firehose with Zstandard compression (`compress=true`, custom dicts), `options_update`, cursor-rewound reconnect & file checkpoints |
+
+## Quickstart
+
+```julia
+using ATProto
+
+# 1. Validated compile-time literals
+d = did"did:plc:z72i7hdynmk6r22z27h6tvur"
+h = handle"bsky.app"
+u = at"at://bsky.app/app.bsky.feed.post/3jui7kd54zh2y"
+
+# 2. Public queries & lazy cursor pagination
+pub = AtpAgent(PUBLIC_APPVIEW)
+profile = get_profile(pub, h)
+posts = collect(Iterators.take(
+    eachitem(pub, API.App.Bsky.Feed.GetAuthorFeed; actor = h, limit = 25),
+    50,
+))
+
+# 3. Authenticated posting with RichText facets
+agent = AtpAgent()
+login!(agent, "you.bsky.social", ENV["BSKY_APP_PASSWORD"])
+rt = richtext(agent, "🚀 Hello @bsky.app from https://julialang.org #JuliaLang!")
+post!(agent, rt; langs = ["en"])
+
+# 4. Real-time Jetstream firehose
+subscribe_jetstream(wanted_collections = ["app.bsky.feed.post"]) do stream
+    for ev in Iterators.take(stream, 10)
+        if ev isa JetstreamCommitEvent && ev.record isa API.AppBskyFeedPost
+            println(ev.did, ": ", ev.record.text)
+        end
+    end
+end
 ```
 
-## Syntax
-
-Identifier and primitive syntax validation.
+## Top-Level Helpers
 
 ```@docs
-ATProto.Syntax.is_valid_did
-ATProto.Syntax.is_valid_handle
-ATProto.Syntax.is_valid_nsid
-ATProto.Syntax.is_valid_tid
-ATProto.Syntax.is_valid_record_key
-ATProto.Syntax.is_valid_at_identifier
-ATProto.Syntax.AtURI
-ATProto.Syntax.at_uri
-ATProto.Syntax.is_valid_datetime
-ATProto.Syntax.datetime_string
-ATProto.Syntax.parse_datetime
-ATProto.Syntax.NSID
-ATProto.Syntax.make_nsid
-ATProto.Syntax.TID
-```
-
-## Crypto
-
-Multibase, CID, hashing, ECDSA.
-
-```@docs
-ATProto.Crypto.multibase_to_bytes
-ATProto.Crypto.bytes_to_multibase
-ATProto.Crypto.CID
-ATProto.Crypto.cid_parse
-ATProto.Crypto.cid_for_dagcbor
-ATProto.Crypto.sha256
-ATProto.Crypto.ripemd160
-ATProto.Crypto.parse_did_key
-ATProto.Crypto.format_did_key
-ATProto.Crypto.P256Key
-ATProto.Crypto.Secp256k1Key
-ATProto.Crypto.generate_key
-ATProto.Crypto.import_key
-ATProto.Crypto.sign_message
-ATProto.Crypto.verify_sig
-ATProto.Crypto.recover_pubkey
-```
-
-## DAG-CBOR
-
-Canonical CBOR encoding/decoding with CID support.
-
-```@docs
-ATProto.DagCbor.dag_cbor_encode
-ATProto.DagCbor.dag_cbor_decode
-ATProto.DagCbor.DagBytes
-```
-
-## DID
-
-DID document parsing, resolvers, PLC verification.
-
-```@docs
-ATProto.DID.is_did_plc
-ATProto.DID.is_did_web
-ATProto.DID.is_atproto_did
-ATProto.DID.DidResolver
-ATProto.DID.resolve_document
-ATProto.DID.resolve_atproto_data
-ATProto.DID.PlcClient
-ATProto.DID.verify_legacy_create
-ATProto.DID.verify_operation
-```
-
-## Identity
-
-Handle resolution and bidirectional identity verification.
-
-```@docs
-ATProto.Identity.HandleResolver
-ATProto.Identity.resolve_handle
-ATProto.Identity.IdResolver
-ATProto.Identity.resolve_identity
-```
-
-## XRPC
-
-XRPC client protocol.
-
-```@docs
-ATProto.XRPC.XRPCClient
-ATProto.XRPC.xrpc_get
-ATProto.XRPC.xrpc_proc
-ATProto.XRPC.serialize_lex
-ATProto.XRPC.parse_lex
-ATProto.XRPC.AuthSession
-ATProto.XRPC.SessionClient
-ATProto.XRPC.create_session
-```
-
-## Lexicon
-
-Lexicon document validation and value validation.
-
-```@docs
-ATProto.Lexicon.Lexicons
-ATProto.Lexicon.add_lexicon!
-ATProto.Lexicon.get_def
-ATProto.Lexicon.validate_lex_ref_variant
-ATProto.Lexicon.assert_valid_record
-ATProto.Lexicon.BlobRef
-ATProto.Lexicon.blob_ref_from_json
-```
-
-## Repo
-
-Merkle Search Tree, CAR archives, commits.
-
-```@docs
-ATProto.Repo.MST
-ATProto.Repo.mst_create
-ATProto.Repo.mst_add
-ATProto.Repo.mst_get
-ATProto.Repo.mst_update
-ATProto.Repo.mst_delete
-ATProto.Repo.mst_pointer
-ATProto.Repo.mst_leaves
-ATProto.Repo.mst_diff
-ATProto.Repo.read_car
-ATProto.Repo.write_car
-ATProto.Repo.create_commit
-ATProto.Repo.verify_commit_chain
-ATProto.Repo.BlockMap
-ATProto.Repo.MemoryBlockStore
-```
-
-## API
-
-Generated client and agent conveniences.
-
-```@docs
-ATProto.API.Agent
-ATProto.API.SessionAgent
-ATProto.API.login
-ATProto.API.create_record
-ATProto.API.create_post
-ATProto.API.upload_blob
-ATProto.API.delete_post
-```
-
-## RichText
-
-Facet detection and text manipulation.
-
-```@docs
-ATProto.RichText.RichText
-ATProto.RichText.detect_facets
-ATProto.RichText.segments
-ATProto.RichText.insert_text!
-ATProto.RichText.delete_text!
-```
-
-## OAuth
-
-PKCE, DPoP, JWT.
-
-```@docs
-ATProto.OAuth.generate_pkce
-ATProto.OAuth.generate_dpop_key
-ATProto.OAuth.build_dpop_proof
-ATProto.OAuth.OAuthClientMetadata
-ATProto.OAuth.validate_client_metadata
-ATProto.OAuth.build_authorization_url
-ATProto.OAuth.exchange_code
-ATProto.OAuth.OAuthSession
-ATProto.OAuth.oauth_request
-```
-
-## Jetstream
-
-Firehose events and WebSocket subscription.
-
-```@docs
-ATProto.Jetstream.FirehoseEvent
-ATProto.Jetstream.CommitEvent
-ATProto.Jetstream.parse_firehose_frame
-ATProto.Jetstream.jetstream_subscribe
+lexicons_path
+get_lexicons
+load_lexicon
 ```
