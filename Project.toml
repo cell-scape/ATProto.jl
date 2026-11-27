@@ -1,7 +1,7 @@
 name = "ATProto"
 uuid = "b9748a49-c99f-4b75-8d55-c29ea4dd92af"
 authors = ["Bradley Dowling <brad.dowling@protonmail.com> and contributors"]
-version = "0.2.0"
+version = "0.2.1"
 
 [deps]
 Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
