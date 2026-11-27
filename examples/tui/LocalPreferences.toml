@@ -1,4 +1,8 @@
 [Tachikoma]
+animations = true
+layout_BlueskyModel_chat_split_cs = "P36,L1"
+layout_BlueskyModel_chat_split_dir = "Horizontal"
+layout_BlueskyModel_chat_split_orig = "H|P36,L1"
 layout_BlueskyModel_feed_split_cs = "P45,L1"
 layout_BlueskyModel_feed_split_dir = "Horizontal"
 layout_BlueskyModel_feed_split_orig = "H|P45,L1"
