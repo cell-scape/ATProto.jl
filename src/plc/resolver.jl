@@ -15,7 +15,7 @@ _plc_body_string(body::AbstractVector{UInt8}) = String(copy(body))
 
 default_fetch(url::AbstractString; headers = (), timeout::Real = 3.0) =
     HTTP.get(url; headers = headers, status_exception = false,
-             read_idle_timeout = Float64(timeout), connect_timeout = Float64(timeout))
+             read_idle_timeout = Int(ceil(timeout)), connect_timeout = Int(ceil(timeout)))
 
 const DEFAULT_PLC_URL = "https://plc.directory"
 

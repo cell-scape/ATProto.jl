@@ -22,7 +22,7 @@ function _default_transport(
     timeout::Real = 30.0,
 )
     req_body = isnothing(body) ? UInt8[] : body
-    t = Float64(timeout)
+    t = Int(ceil(timeout))
     return HTTP.request(
         method,
         url,

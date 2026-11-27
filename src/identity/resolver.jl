@@ -20,7 +20,7 @@ function _default_id_http(
     headers::Vector{Pair{String, String}};
     timeout::Real = 10.0,
 )
-    t = Float64(timeout)
+    t = Int(ceil(timeout))
     return HTTP.request(
         "GET",
         url,

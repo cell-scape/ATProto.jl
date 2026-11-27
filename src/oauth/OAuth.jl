@@ -11,8 +11,8 @@ using Random
 
 _default_oauth_fetch(method::AbstractString, url::AbstractString, headers, body; timeout::Real = 30.0) =
     HTTP.request(String(method), String(url), headers, body === nothing ? UInt8[] : body;
-                 status_exception = false, read_idle_timeout = Float64(timeout),
-                 connect_timeout = Float64(timeout))
+                 status_exception = false, read_idle_timeout = Int(ceil(timeout)),
+                 connect_timeout = Int(ceil(timeout)))
 
 export OAuthClientMetadata,
     OAuthSession,
